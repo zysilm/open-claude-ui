@@ -118,6 +118,20 @@ class ContainerPoolManager:
                 # Clean up dead container
                 await self.destroy_container(session_id)
 
+        # Check if orphaned container with same name exists in Docker
+        container_name = f"opencodex-sandbox-{session_id}"
+        try:
+            existing = self.docker_client.containers.get(container_name)
+            # Found orphaned container - remove it
+            print(f"Found orphaned container {container_name}, removing...")
+            existing.stop(timeout=2)
+            existing.remove(force=True)
+        except docker.errors.NotFound:
+            # No orphaned container, good to proceed
+            pass
+        except Exception as e:
+            print(f"Error checking for orphaned container: {e}")
+
         # Ensure image exists
         image_name = self._ensure_image_exists(env_type)
 

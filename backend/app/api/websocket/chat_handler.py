@@ -10,7 +10,7 @@ from app.models.database import ChatSession, Message, MessageRole, AgentConfigur
 from app.core.llm import create_llm_provider
 from app.core.agent.executor import ReActAgent
 from app.core.agent.tools import ToolRegistry, BashTool, FileReadTool, FileWriteTool, FileEditTool
-from app.core.sandbox.manager import ContainerPoolManager
+from app.core.sandbox.manager import get_container_manager
 
 
 class ChatWebSocketHandler:
@@ -197,8 +197,8 @@ class ChatWebSocketHandler:
         agent_config: AgentConfiguration
     ):
         """Handle agent response with tool execution."""
-        # Get or create sandbox container
-        container_manager = ContainerPoolManager()
+        # Get or create sandbox container using global singleton
+        container_manager = get_container_manager()
         container = await container_manager.create_container(
             session_id,
             agent_config.environment_type,
