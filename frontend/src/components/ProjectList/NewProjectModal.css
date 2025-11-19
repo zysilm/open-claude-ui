@@ -4,7 +4,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.7);
+  background-color: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -12,13 +12,13 @@
 }
 
 .modal-content {
-  background-color: #2a2a2a;
-  border-radius: 8px;
+  background: #ffffff;
+  border-radius: 12px;
   width: 90%;
   max-width: 500px;
   max-height: 90vh;
   overflow-y: auto;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
 }
 
 .modal-header {
@@ -26,19 +26,20 @@
   justify-content: space-between;
   align-items: center;
   padding: 24px 24px 16px;
-  border-bottom: 1px solid #3a3a3a;
+  border-bottom: 1px solid #e5e7eb;
 }
 
 .modal-header h2 {
   font-size: 20px;
   font-weight: 600;
-  color: #ffffff;
+  color: #111827;
   margin: 0;
 }
 
 .modal-close-btn {
   background: none;
-  color: #888;
+  border: none;
+  color: #9ca3af;
   font-size: 32px;
   line-height: 1;
   padding: 0;
@@ -48,12 +49,13 @@
   align-items: center;
   justify-content: center;
   border-radius: 4px;
+  cursor: pointer;
   transition: all 0.2s;
 }
 
 .modal-close-btn:hover {
-  background-color: #3a3a3a;
-  color: #ffffff;
+  background: #f3f4f6;
+  color: #111827;
 }
 
 form {
@@ -67,7 +69,7 @@ form {
 .form-group label {
   display: block;
   margin-bottom: 8px;
-  color: #e0e0e0;
+  color: #374151;
   font-size: 14px;
   font-weight: 500;
 }
@@ -76,31 +78,38 @@ form {
 .form-group textarea {
   width: 100%;
   padding: 10px 12px;
-  background-color: #1a1a1a;
-  border: 1px solid #3a3a3a;
+  background: #ffffff;
+  border: 1px solid #d1d5db;
   border-radius: 6px;
-  color: #ffffff;
+  color: #111827;
   font-size: 14px;
-  transition: border-color 0.2s;
+  transition: all 0.2s;
 }
 
 .form-group input:focus,
 .form-group textarea:focus {
   outline: none;
-  border-color: #0066cc;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.form-group input::placeholder,
+.form-group textarea::placeholder {
+  color: #9ca3af;
 }
 
 .form-group textarea {
   resize: vertical;
   font-family: inherit;
+  min-height: 100px;
 }
 
 .error-message {
   padding: 12px;
-  background-color: rgba(255, 68, 68, 0.1);
-  border: 1px solid #ff4444;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
   border-radius: 6px;
-  color: #ff6b6b;
+  color: #991b1b;
   font-size: 14px;
   margin-bottom: 20px;
 }
@@ -110,43 +119,71 @@ form {
   justify-content: flex-end;
   gap: 12px;
   padding-top: 20px;
-  border-top: 1px solid #3a3a3a;
+  border-top: 1px solid #e5e7eb;
 }
 
 .btn-primary,
 .btn-secondary {
   padding: 10px 20px;
+  border: none;
   border-radius: 6px;
   font-size: 14px;
   font-weight: 500;
+  cursor: pointer;
   transition: all 0.2s;
 }
 
 .btn-primary {
-  background-color: #0066cc;
-  color: white;
+  background: #2563eb;
+  color: #ffffff;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background-color: #0052a3;
+  background: #1d4ed8;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(37, 99, 235, 0.3);
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: translateY(0);
 }
 
 .btn-primary:disabled {
-  background-color: #004080;
+  background: #9ca3af;
   opacity: 0.6;
   cursor: not-allowed;
 }
 
 .btn-secondary {
-  background-color: #3a3a3a;
-  color: #e0e0e0;
+  background: #ffffff;
+  color: #374151;
+  border: 1px solid #d1d5db;
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background-color: #4a4a4a;
+  background: #f9fafb;
+  border-color: #9ca3af;
 }
 
 .btn-secondary:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+/* Scrollbar Styling */
+.modal-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.modal-content::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+.modal-content::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.modal-content::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }

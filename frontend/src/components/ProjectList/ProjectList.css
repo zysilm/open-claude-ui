@@ -3,6 +3,7 @@
   height: 100%;
   padding: 40px 60px;
   overflow-y: auto;
+  background: #f9fafb;
 }
 
 .project-list-header {
@@ -14,22 +15,30 @@
 
 .project-list-header h1 {
   font-size: 32px;
-  font-weight: 600;
-  color: #ffffff;
+  font-weight: 700;
+  color: #111827;
 }
 
 .create-project-btn {
   padding: 12px 24px;
-  background-color: #0066cc;
-  color: white;
+  background: #2563eb;
+  color: #ffffff;
+  border: none;
   border-radius: 6px;
   font-size: 14px;
   font-weight: 500;
-  transition: background-color 0.2s;
+  cursor: pointer;
+  transition: all 0.2s;
 }
 
 .create-project-btn:hover {
-  background-color: #0052a3;
+  background: #1d4ed8;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(37, 99, 235, 0.3);
+}
+
+.create-project-btn:active {
+  transform: translateY(0);
 }
 
 .projects-grid {
@@ -44,10 +53,28 @@
 .no-projects {
   text-align: center;
   padding: 60px 20px;
-  color: #888;
+  color: #6b7280;
   font-size: 16px;
 }
 
 .error {
-  color: #ff6b6b;
+  color: #ef4444;
+}
+
+/* Scrollbar Styling */
+.project-list-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.project-list-container::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+.project-list-container::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.project-list-container::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }

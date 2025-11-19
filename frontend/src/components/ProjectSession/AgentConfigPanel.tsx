@@ -152,15 +152,14 @@ export default function AgentConfigPanel({ projectId }: AgentConfigPanelProps) {
 
   return (
     <div className="agent-config-panel">
-      <div className="panel-header">
-        <h3>Agent Configuration</h3>
-        {hasChanges && (
+      {hasChanges && (
+        <div className="panel-header">
           <div className="unsaved-indicator">
             <span className="dot"></span>
             Unsaved changes
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="config-tabs">

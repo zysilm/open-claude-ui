@@ -80,7 +80,6 @@ export default function FilePanel({ projectId }: FilePanelProps) {
   return (
     <div className="file-panel">
       <div className="file-panel-header">
-        <h3>Project Files</h3>
         <button
           className="upload-btn"
           onClick={handleUploadClick}

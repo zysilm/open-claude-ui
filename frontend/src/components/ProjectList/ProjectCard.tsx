@@ -20,7 +20,7 @@ export default function ProjectCard({ project, onDelete }: ProjectCardProps) {
   };
 
   const handleClick = () => {
-    navigate(`/project/${project.id}`);
+    navigate(`/projects/${project.id}`);
   };
 
   return (
