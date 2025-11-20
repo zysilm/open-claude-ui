@@ -168,7 +168,7 @@ export const sandboxAPI = {
   },
 
   reset: async (sessionId: string): Promise<any> => {
-    const { data } = await api.post(`/sandbox/${sessionId}/reset`);
+    const { data} = await api.post(`/sandbox/${sessionId}/reset`);
     return data;
   },
 
@@ -181,6 +181,52 @@ export const sandboxAPI = {
     const { data } = await api.post(`/sandbox/${sessionId}/execute`, {
       command,
       workdir: workdir || '/workspace',
+    });
+    return data;
+  },
+};
+
+// Settings API
+export interface ApiKeyStatus {
+  provider: string;
+  is_configured: boolean;
+  last_used_at: string | null;
+  created_at: string;
+}
+
+export interface ApiKeyListResponse {
+  api_keys: ApiKeyStatus[];
+}
+
+export interface ApiKeyCreate {
+  provider: string;
+  api_key: string;
+}
+
+export interface ApiKeyTestResult {
+  valid: boolean;
+  message: string;
+}
+
+export const settingsAPI = {
+  listApiKeys: async (): Promise<ApiKeyListResponse> => {
+    const { data } = await api.get<ApiKeyListResponse>('/settings/api-keys');
+    return data;
+  },
+
+  setApiKey: async (keyData: ApiKeyCreate): Promise<{ message: string }> => {
+    const { data } = await api.post('/settings/api-keys', keyData);
+    return data;
+  },
+
+  deleteApiKey: async (provider: string): Promise<void> => {
+    await api.delete(`/settings/api-keys/${provider}`);
+  },
+
+  testApiKey: async (provider: string, apiKey: string): Promise<ApiKeyTestResult> => {
+    const { data } = await api.post<ApiKeyTestResult>('/settings/api-keys/test', {
+      provider,
+      api_key: apiKey,
     });
     return data;
   },

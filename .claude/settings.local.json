@@ -27,7 +27,9 @@
       "Bash(PORT=8002 poetry run python:*)",
       "Bash(poetry run pytest:*)",
       "Bash(python migrations/migrate_environment_to_sessions.py:*)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "WebSearch",
+      "Bash(poetry add:*)"
     ],
     "deny": [],
     "ask": []

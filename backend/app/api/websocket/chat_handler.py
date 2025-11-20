@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.models.database import ChatSession, Message, MessageRole, AgentConfiguration, AgentAction
-from app.core.llm import create_llm_provider
+from app.core.llm import create_llm_provider_with_db
 from app.core.agent.executor import ReActAgent
 from app.core.agent.tools import ToolRegistry, BashTool, FileReadTool, FileWriteTool, FileEditTool, SearchTool, SetupEnvironmentTool
 from app.core.sandbox.manager import get_container_manager
@@ -106,12 +106,13 @@ class ChatWebSocketHandler:
         # Get conversation history
         history = await self._get_conversation_history(session_id)
 
-        # Create LLM provider
+        # Create LLM provider (with database API key lookup)
         try:
-            llm_provider = create_llm_provider(
+            llm_provider = await create_llm_provider_with_db(
                 provider=agent_config.llm_provider,
                 model=agent_config.llm_model,
                 llm_config=agent_config.llm_config,
+                db=self.db,
             )
 
             # Check if agent mode is enabled (has tools)

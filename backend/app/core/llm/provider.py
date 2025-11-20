@@ -1,9 +1,11 @@
 """LLM provider abstraction using LiteLLM."""
 
 import os
-from typing import List, Dict, Any, AsyncIterator
+from typing import List, Dict, Any, AsyncIterator, Optional
 from litellm import acompletion
 import litellm
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 # Disable LiteLLM logging by default
 litellm.suppress_debug_info = True
@@ -173,5 +175,78 @@ def create_llm_provider(
         provider=provider,
         model=model,
         api_key=api_key,
+        **llm_config
+    )
+
+
+async def create_llm_provider_with_db(
+    provider: str,
+    model: str,
+    llm_config: Dict[str, Any],
+    db: AsyncSession,
+    api_key: Optional[str] = None
+) -> LLMProvider:
+    """
+    Factory function to create LLM provider with database API key lookup.
+
+    Priority order:
+    1. Explicitly provided api_key parameter
+    2. API key from database
+    3. Environment variable (fallback)
+
+    Args:
+        provider: Provider name
+        model: Model name
+        llm_config: LLM configuration dict
+        db: Database session
+        api_key: Optional explicit API key (highest priority)
+
+    Returns:
+        LLMProvider instance
+    """
+    # If API key explicitly provided, use it
+    if api_key:
+        return LLMProvider(
+            provider=provider,
+            model=model,
+            api_key=api_key,
+            **llm_config
+        )
+
+    # Try to get API key from database
+    try:
+        from app.models.database import ApiKey
+        from app.core.security.encryption import get_encryption_service
+        from datetime import datetime
+
+        # FUTURE: Add .where(ApiKey.user_id == current_user.id)
+        query = select(ApiKey).where(ApiKey.provider == provider.lower())
+        result = await db.execute(query)
+        key_record = result.scalar_one_or_none()
+
+        if key_record:
+            # Decrypt the API key
+            encryption_service = get_encryption_service()
+            decrypted_key = encryption_service.decrypt(key_record.encrypted_key)
+
+            # Update last_used_at timestamp
+            key_record.last_used_at = datetime.utcnow()
+            await db.commit()
+
+            return LLMProvider(
+                provider=provider,
+                model=model,
+                api_key=decrypted_key,
+                **llm_config
+            )
+    except Exception as e:
+        # Log the error but don't fail - fall back to environment variables
+        print(f"Warning: Failed to retrieve API key from database: {e}")
+
+    # Fallback to environment variable (original behavior)
+    return LLMProvider(
+        provider=provider,
+        model=model,
+        api_key=None,  # Will use environment variable
         **llm_config
     )

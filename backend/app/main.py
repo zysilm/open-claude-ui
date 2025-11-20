@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.core.storage.database import init_db, close_db
-from app.api.routes import projects, chat, sandbox, files
+from app.api.routes import projects, chat, sandbox, files, settings as settings_routes
 
 
 @asynccontextmanager
@@ -47,6 +47,7 @@ app.include_router(projects.router, prefix="/api/v1")
 app.include_router(chat.router, prefix="/api/v1")
 app.include_router(sandbox.router, prefix="/api/v1")
 app.include_router(files.router, prefix="/api/v1")
+app.include_router(settings_routes.router, prefix="/api/v1")
 
 
 @app.get("/")

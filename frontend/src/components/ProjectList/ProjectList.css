@@ -19,6 +19,29 @@
   color: #111827;
 }
 
+.header-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.settings-btn {
+  padding: 10px 20px;
+  background: #f9fafb;
+  color: #374151;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.settings-btn:hover {
+  background: #f3f4f6;
+  border-color: #d1d5db;
+}
+
 .create-project-btn {
   padding: 12px 24px;
   background: #2563eb;

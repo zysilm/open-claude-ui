@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { projectsAPI } from '@/services/api';
 import { useUIStore } from '@/stores/uiStore';
@@ -8,6 +9,7 @@ import NewProjectModal from './NewProjectModal';
 import './ProjectList.css';
 
 export default function ProjectList() {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
   const { isCreateProjectModalOpen, setCreateProjectModalOpen } = useUIStore();
@@ -42,12 +44,21 @@ export default function ProjectList() {
     <div className="project-list-container">
       <div className="project-list-header">
         <h1>Projects</h1>
-        <button
-          className="create-project-btn"
-          onClick={() => setCreateProjectModalOpen(true)}
-        >
-          + New Project
-        </button>
+        <div className="header-actions">
+          <button
+            className="settings-btn"
+            onClick={() => navigate('/settings')}
+            title="Manage API Keys"
+          >
+            ⚙️ Settings
+          </button>
+          <button
+            className="create-project-btn"
+            onClick={() => setCreateProjectModalOpen(true)}
+          >
+            + New Project
+          </button>
+        </div>
       </div>
 
       <ProjectSearch value={searchQuery} onChange={setSearchQuery} />

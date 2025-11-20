@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     default_llm_provider: str = "openai"
     default_llm_model: str = "gpt-4"
 
+    # API Key Encryption
+    master_encryption_key: str | None = None
+
     @property
     def cors_origins_list(self) -> List[str]:
         """Parse CORS origins as list."""
