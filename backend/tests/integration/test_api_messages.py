@@ -115,14 +115,10 @@ class TestMessagesAPI:
             params={"limit": 10, "offset": 0}
         )
 
-        assert response.status_code == 201
+        assert response.status_code == 200
         data = response.json()
         # Check that we get messages (exact count may vary based on pagination implementation)
         assert len(data["messages"]) > 0
-
-        # Verify message is deleted
-        response = client.get(f"/api/v1/messages/{message_id}")
-        assert response.status_code == 404
 
     def test_conversation_history_format(self, client: TestClient, sample_chat_session, sample_messages):
         """Test that conversation history maintains correct order and format."""

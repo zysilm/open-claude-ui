@@ -121,10 +121,16 @@ class TestDatabaseOperations:
     @pytest.mark.asyncio
     async def test_message_ordering(self, db_session: AsyncSession):
         """Test that messages maintain chronological order."""
-        from app.models.database import ChatSession, Message, MessageRole
+        from app.models.database import Project, ChatSession, Message, MessageRole
         import asyncio
 
-        session = ChatSession(project_id=None, name="Order Test")
+        # Create project first
+        project = Project(name="Order Test Project")
+        db_session.add(project)
+        await db_session.commit()
+        await db_session.refresh(project)
+
+        session = ChatSession(project_id=project.id, name="Order Test")
         db_session.add(session)
         await db_session.commit()
         await db_session.refresh(session)
@@ -239,10 +245,16 @@ class TestDatabaseOperations:
     async def test_agent_action_storage(self, db_session: AsyncSession):
         """Test storing agent actions linked to messages."""
         from app.models.database import (
-            ChatSession, Message, MessageRole, AgentAction
+            Project, ChatSession, Message, MessageRole, AgentAction
         )
 
-        session = ChatSession(project_id=None, name="Action Test")
+        # Create project first
+        project = Project(name="Action Test Project")
+        db_session.add(project)
+        await db_session.commit()
+        await db_session.refresh(project)
+
+        session = ChatSession(project_id=project.id, name="Action Test")
         db_session.add(session)
         await db_session.commit()
         await db_session.refresh(session)
