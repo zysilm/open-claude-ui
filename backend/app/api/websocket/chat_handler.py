@@ -138,6 +138,17 @@ class ChatWebSocketHandler:
         history = await self._get_conversation_history(session_id)
         print(f"[CHAT HANDLER] Conversation history length: {len(history)}")
 
+        # Debug: Log the full conversation history to verify tool outputs are included
+        print(f"[CHAT HANDLER] Full conversation history:")
+        for i, msg in enumerate(history):
+            role = msg.get("role", "unknown")
+            content_preview = str(msg.get("content", ""))[:100]
+            has_tool_call = "tool_call" in msg
+            print(f"  [{i}] {role}: {content_preview}{'...' if len(str(msg.get('content', ''))) > 100 else ''}")
+            if has_tool_call:
+                print(f"       Tool: {msg['tool_call']['name']}")
+        print(f"[CHAT HANDLER] ---")
+
         # Create LLM provider (with database API key lookup)
         try:
             print(f"[CHAT HANDLER] Creating LLM provider...")
@@ -419,6 +430,48 @@ class ChatWebSocketHandler:
                         }
                         agent_actions[-1]["status"] = "success" if success else "error"
 
+                    # CRITICAL FIX: If setup_environment just succeeded, update tool registry
+                    if agent_actions and agent_actions[-1]["action_type"] == "setup_environment" and success:
+                        print(f"[AGENT] setup_environment succeeded! Updating tool registry with sandbox tools...")
+
+                        # Refresh session from database to get updated environment_type
+                        session_query = select(ChatSession).where(ChatSession.id == session_id)
+                        session_result = await self.db.execute(session_query)
+                        session = session_result.scalar_one_or_none()
+
+                        if session and session.environment_type:
+                            # Get or create container
+                            container = await container_manager.get_container(session_id)
+                            if not container:
+                                container = await container_manager.create_container(
+                                    session_id,
+                                    session.environment_type,
+                                    session.environment_config or {}
+                                )
+
+                            # Clear existing tools and register sandbox tools
+                            tool_registry._tools = {}  # Reset tool registry
+
+                            if "bash" in agent_config.enabled_tools:
+                                tool_registry.register(BashTool(container))
+                                print(f"[AGENT]   ✓ Registered BashTool")
+                            if "file_read" in agent_config.enabled_tools:
+                                tool_registry.register(FileReadTool(container))
+                                print(f"[AGENT]   ✓ Registered FileReadTool")
+                            if "file_write" in agent_config.enabled_tools:
+                                tool_registry.register(FileWriteTool(container))
+                                print(f"[AGENT]   ✓ Registered FileWriteTool")
+                            if "file_edit" in agent_config.enabled_tools:
+                                tool_registry.register(FileEditTool(container))
+                                print(f"[AGENT]   ✓ Registered FileEditTool")
+                            if "search" in agent_config.enabled_tools:
+                                tool_registry.register(SearchTool(container))
+                                print(f"[AGENT]   ✓ Registered SearchTool")
+
+                            print(f"[AGENT] Tool registry updated! Now has {len(tool_registry._tools)} tools")
+                        else:
+                            print(f"[AGENT] WARNING: setup_environment succeeded but session.environment_type is still None")
+
                 elif event_type == "chunk":
                     # Agent is streaming final answer chunks
                     chunk = event.get("content", "")
@@ -554,9 +607,21 @@ class ChatWebSocketHandler:
 
                     # Add function result
                     # Tool results are sent as user messages in GPT-5 format
+                    # Format the output to clearly show success status and result
+                    if action.action_output:
+                        if isinstance(action.action_output, dict):
+                            success = action.action_output.get("success", True)
+                            result = action.action_output.get("result", action.action_output)
+                            status_prefix = "[SUCCESS]" if success else "[FAILED]"
+                            output_content = f"{status_prefix} Tool '{action.action_type}' result:\n{result}"
+                        else:
+                            output_content = f"Tool '{action.action_type}' returned: {action.action_output}"
+                    else:
+                        output_content = f"Tool '{action.action_type}' completed (no output)"
+
                     history.append({
                         "role": "user",
-                        "content": f"Tool '{action.action_type}' returned: {action.action_output}"
+                        "content": output_content
                     })
 
         return history
