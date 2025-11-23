@@ -99,7 +99,13 @@ export const CodeBlock = ({ inline, className, children, ...props }: any) => {
 };
 
 // Component to render observation content (handles images)
-export const ObservationContent = ({ content, metadata }: { content: string; metadata?: any }) => {
+export const ObservationContent = ({ content, metadata }: { content: string | any; metadata?: any }) => {
+  // Extract text content from object if needed (for persisted actions)
+  let textContent = content;
+  if (typeof content === 'object' && content !== null) {
+    textContent = content.result || content.output || content.data || JSON.stringify(content);
+  }
+
   // Check if this observation contains an image
   if (metadata && metadata.type === 'image' && metadata.image_data) {
     const imageData = metadata.image_data;
@@ -108,7 +114,7 @@ export const ObservationContent = ({ content, metadata }: { content: string; met
     return (
       <div className="observation-content" style={{ textAlign: 'left' }}>
         <div style={{ marginBottom: '12px', color: '#14532d' }}>
-          {content}
+          {textContent}
         </div>
         <div style={{
           background: '#ffffff',

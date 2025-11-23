@@ -21,6 +21,7 @@ export interface StreamEvent {
   step?: number;
   success?: boolean;
   status?: string;
+  metadata?: any;
 }
 
 interface UseOptimizedStreamingProps {
@@ -161,6 +162,7 @@ export const useOptimizedStreaming = ({ sessionId, initialMessages = [] }: UseOp
           type: 'observation',
           content: data.content,
           success: data.success,
+          metadata: data.metadata,
           step: data.step,
         });
         break;
