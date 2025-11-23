@@ -546,7 +546,10 @@ class ChatWebSocketHandler:
 
                     # INCREMENTAL SAVE: Update the current action with result
                     if current_action:
-                        current_action.action_output = observation
+                        current_action.action_output = {
+                            "result": observation,
+                            "success": success
+                        }
                         current_action.metadata = metadata
                         current_action.status = "success" if success else "error"
                         await self.db.commit()

@@ -100,21 +100,10 @@ class FileReadTool(Tool):
 
         Args:
             container: SandboxContainer instance for file operations
-            model_name: Name of the LLM model (to detect vision capabilities)
+            model_name: Name of the LLM model (reserved for future VLM support)
         """
         self._container = container
         self._model_name = model_name.lower()
-
-        # List of vision-capable models
-        self._vision_models = [
-            'gpt-4-vision', 'gpt-4o', 'gpt-4-turbo',
-            'claude-3-opus', 'claude-3-sonnet', 'claude-3-haiku',
-            'gemini-pro-vision', 'gemini-1.5'
-        ]
-
-    def _is_vision_model(self) -> bool:
-        """Check if the current model supports vision."""
-        return any(vm in self._model_name for vm in self._vision_models)
 
     @property
     def name(self) -> str:
@@ -198,30 +187,20 @@ class FileReadTool(Tool):
                 mime_type = content.split(';')[0].replace('data:', '')
                 data_size_kb = len(content) // 1024
 
-                # For VLMs: include image in output so the model can "see" it
-                # For non-VLMs: just include short message to save tokens
-                is_vlm = self._is_vision_model()
-
-                if is_vlm:
-                    # VLM can analyze the image
-                    output_msg = (
-                        f"Successfully read image file: {path} ({data_size_kb}KB, {mime_type})\n\n"
-                        f"Image content (you can analyze this):\n{content}\n\n"
-                        f"The image will also be displayed to the user in the chat."
-                    )
-                else:
-                    # Non-VLM: short message only
-                    output_msg = (
-                        f"Successfully read image file: {path} ({data_size_kb}KB, {mime_type})\n"
-                        f"Image will be automatically displayed to the user in the chat."
-                    )
+                # ALWAYS use short message for LLM to save tokens
+                # Full image data is stored in metadata for frontend display
+                # Note: VLM support would require special vision message format,
+                # not base64 text in regular messages
+                output_msg = (
+                    f"Successfully read image file: {path} ({data_size_kb}KB, {mime_type})\n"
+                    f"Image will be displayed to the user in the chat."
+                )
 
                 # Store full image data in metadata for frontend to display
                 metadata["type"] = "image"
                 metadata["image_data"] = content  # Full base64 data URI
                 metadata["filename"] = filename
                 metadata["mime_type"] = mime_type
-                metadata["is_vlm"] = is_vlm
             else:
                 output_msg = content
 
