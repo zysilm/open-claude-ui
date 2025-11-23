@@ -5,7 +5,8 @@ import {
   CodeBlock,
   FileWriteActionArgs,
   formatActionArgs,
-  ObservationContent
+  ObservationContent,
+  MessageContentWithImages
 } from './MessageHelpers';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -231,9 +232,7 @@ export const MemoizedMessage = memo(
             {/* Non-streaming assistant message */}
             {message.role === 'assistant' && !isStreaming && message.content && (
               <div className="message-body">
-                <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: CodeBlock }}>
-                  {message.content}
-                </ReactMarkdown>
+                <MessageContentWithImages content={message.content} />
               </div>
             )}
 

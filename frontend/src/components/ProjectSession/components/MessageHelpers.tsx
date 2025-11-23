@@ -1,3 +1,4 @@
+import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -6,6 +7,230 @@ import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 // ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
+
+/**
+ * Process message content to render embedded SVGs and data URIs as actual images
+ */
+export const processContentWithImages = (content: string): React.ReactNode[] => {
+  const elements: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let keyCounter = 0;
+
+  // Pattern 1: Detect SVG code blocks
+  const svgPattern = /<svg\s[^>]*>[\s\S]*?<\/svg>/gi;
+
+  // Pattern 2: Detect data URI images (data:image/...)
+  const dataUriPattern = /data:image\/[a-zA-Z]+;base64,[A-Za-z0-9+/=]+/g;
+
+  // Combine both patterns
+  const combinedPattern = new RegExp(
+    `(${svgPattern.source})|(${dataUriPattern.source})`,
+    'gi'
+  );
+
+  let match;
+  while ((match = combinedPattern.exec(content)) !== null) {
+    // Add text before this match
+    if (match.index > lastIndex) {
+      const textBefore = content.substring(lastIndex, match.index);
+      elements.push(
+        <span key={`text-${keyCounter++}`}>{textBefore}</span>
+      );
+    }
+
+    const matchedContent = match[0];
+
+    // Check if it's SVG
+    if (matchedContent.startsWith('<svg')) {
+      elements.push(
+        <div
+          key={`svg-${keyCounter++}`}
+          style={{
+            display: 'inline-block',
+            margin: '12px 0',
+            padding: '12px',
+            background: '#f9fafb',
+            border: '1px solid #e5e7eb',
+            borderRadius: '6px',
+            maxWidth: '100%',
+          }}
+          dangerouslySetInnerHTML={{ __html: matchedContent }}
+        />
+      );
+    }
+    // Check if it's data URI
+    else if (matchedContent.startsWith('data:image/')) {
+      // Extract mime type for display
+      const mimeMatch = matchedContent.match(/data:image\/([a-zA-Z]+);/);
+      const imageType = mimeMatch ? mimeMatch[1].toUpperCase() : 'IMAGE';
+
+      elements.push(
+        <div
+          key={`img-${keyCounter++}`}
+          style={{
+            margin: '12px 0',
+            padding: '12px',
+            background: '#f9fafb',
+            border: '1px solid #e5e7eb',
+            borderRadius: '6px',
+            textAlign: 'center',
+          }}
+        >
+          <img
+            src={matchedContent}
+            alt={`Generated ${imageType}`}
+            style={{
+              maxWidth: '100%',
+              maxHeight: '500px',
+              borderRadius: '4px',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+            }}
+          />
+          <div
+            style={{
+              marginTop: '8px',
+              fontSize: '12px',
+              color: '#6b7280',
+            }}
+          >
+            {imageType} Image
+          </div>
+        </div>
+      );
+    }
+
+    lastIndex = match.index + matchedContent.length;
+  }
+
+  // Add remaining text
+  if (lastIndex < content.length) {
+    elements.push(
+      <span key={`text-${keyCounter++}`}>{content.substring(lastIndex)}</span>
+    );
+  }
+
+  return elements.length > 0 ? elements : [content];
+};
+
+/**
+ * Component to render message content with embedded images and markdown support
+ */
+export const MessageContentWithImages: React.FC<{ content: string }> = ({ content }) => {
+  const elements: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let keyCounter = 0;
+
+  // Pattern to detect SVGs and data URIs
+  const svgPattern = /<svg\s[^>]*>[\s\S]*?<\/svg>/gi;
+  const dataUriPattern = /data:image\/[a-zA-Z]+;base64,[A-Za-z0-9+/=]+/g;
+  const combinedPattern = new RegExp(
+    `(${svgPattern.source})|(${dataUriPattern.source})`,
+    'gi'
+  );
+
+  let match;
+  while ((match = combinedPattern.exec(content)) !== null) {
+    // Add markdown-rendered text before this match
+    if (match.index > lastIndex) {
+      const textBefore = content.substring(lastIndex, match.index);
+      elements.push(
+        <ReactMarkdown
+          key={`markdown-${keyCounter++}`}
+          remarkPlugins={[remarkGfm]}
+          components={{ code: CodeBlock }}
+        >
+          {textBefore}
+        </ReactMarkdown>
+      );
+    }
+
+    const matchedContent = match[0];
+
+    // Render SVG
+    if (matchedContent.startsWith('<svg')) {
+      elements.push(
+        <div
+          key={`svg-${keyCounter++}`}
+          style={{
+            display: 'inline-block',
+            margin: '12px 0',
+            padding: '12px',
+            background: '#f9fafb',
+            border: '1px solid #e5e7eb',
+            borderRadius: '6px',
+            maxWidth: '100%',
+          }}
+          dangerouslySetInnerHTML={{ __html: matchedContent }}
+        />
+      );
+    }
+    // Render data URI image
+    else if (matchedContent.startsWith('data:image/')) {
+      const mimeMatch = matchedContent.match(/data:image\/([a-zA-Z]+);/);
+      const imageType = mimeMatch ? mimeMatch[1].toUpperCase() : 'IMAGE';
+
+      elements.push(
+        <div
+          key={`img-${keyCounter++}`}
+          style={{
+            margin: '12px 0',
+            padding: '12px',
+            background: '#f9fafb',
+            border: '1px solid #e5e7eb',
+            borderRadius: '6px',
+            textAlign: 'center',
+          }}
+        >
+          <img
+            src={matchedContent}
+            alt={`Generated ${imageType}`}
+            style={{
+              maxWidth: '100%',
+              maxHeight: '500px',
+              borderRadius: '4px',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+            }}
+          />
+          <div
+            style={{
+              marginTop: '8px',
+              fontSize: '12px',
+              color: '#6b7280',
+            }}
+          >
+            {imageType} Image
+          </div>
+        </div>
+      );
+    }
+
+    lastIndex = match.index + matchedContent.length;
+  }
+
+  // Add remaining markdown-rendered text
+  if (lastIndex < content.length) {
+    elements.push(
+      <ReactMarkdown
+        key={`markdown-${keyCounter++}`}
+        remarkPlugins={[remarkGfm]}
+        components={{ code: CodeBlock }}
+      >
+        {content.substring(lastIndex)}
+      </ReactMarkdown>
+    );
+  }
+
+  // If no images found, just render as markdown
+  if (elements.length === 0) {
+    return (
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: CodeBlock }}>
+        {content}
+      </ReactMarkdown>
+    );
+  }
+
+  return <div className="message-content-with-images">{elements}</div>;
+};
 
 export const formatObservationContent = (content: string | any): string => {
   let dataToFormat = content;
