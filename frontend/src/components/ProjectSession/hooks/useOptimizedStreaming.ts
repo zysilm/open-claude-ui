@@ -255,6 +255,8 @@ export const useOptimizedStreaming = ({ sessionId, initialMessages = [] }: UseOp
         console.log('[TITLE] Session title updated:', data.title);
         // Invalidate chat sessions query to refresh sidebar with new title
         queryClient.invalidateQueries({ queryKey: ['chatSessions'] });
+        // Invalidate current session query to refresh header title
+        queryClient.invalidateQueries({ queryKey: ['chatSession', sessionId] });
         break;
 
       default:
