@@ -305,22 +305,6 @@ export default function ChatSessionPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, agentActions, streamEvents]);
 
-  // Handle page visibility changes to force re-render when tab becomes visible
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        console.log('[ChatSessionPage] Tab became visible, streamEvents count:', streamEvents.length);
-        // Force a re-render by triggering state update
-        setMessages((prev) => [...prev]);
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [streamEvents]);
-
   // WebSocket connection
   useEffect(() => {
     if (!sessionId) return;
@@ -605,7 +589,15 @@ export default function ChatSessionPage() {
 
                       return hasPersistedActions ? (
                         <div className="agent-actions-inline">
-                          {message.agent_actions.map((action: any, idx: number) => {
+                          {message.agent_actions
+                            .slice()
+                            .sort((a: any, b: any) => {
+                              // Sort by created_at timestamp in ascending order (earliest first)
+                              const timeA = new Date(a.created_at).getTime();
+                              const timeB = new Date(b.created_at).getTime();
+                              return timeA - timeB;
+                            })
+                            .map((action: any, idx: number) => {
                             // Check if this is a file write action
                             const isFileWrite = action.action_type && (
                               action.action_type.toLowerCase().includes('file_write') ||
