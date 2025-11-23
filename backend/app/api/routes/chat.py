@@ -3,6 +3,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, WebSocket, WebSocketDisconnect
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
+from sqlalchemy.orm import joinedload
 
 from app.core.storage.database import get_db
 from app.models.database import ChatSession, Message, MessageRole, Project
@@ -175,8 +176,6 @@ async def list_messages(
     total = total_result.scalar_one()
 
     # Get messages with agent actions
-    from sqlalchemy.orm import joinedload
-
     query = (
         select(Message)
         .options(joinedload(Message.agent_actions))  # Eagerly load agent actions
@@ -221,9 +220,13 @@ async def create_message(
     )
     db.add(message)
     await db.commit()
-    await db.refresh(message)
 
-    return MessageResponse.model_validate(message)
+    # Eagerly load agent_actions relationship to avoid lazy loading issues
+    query = select(Message).options(joinedload(Message.agent_actions)).where(Message.id == message.id)
+    result = await db.execute(query)
+    refreshed_message = result.unique().scalar_one()
+
+    return MessageResponse.model_validate(refreshed_message)
 
 
 # WebSocket endpoint for streaming chat
