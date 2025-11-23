@@ -1,9 +1,95 @@
 """File operation tools for agent."""
 
-from typing import List
+from typing import List, Type
+from pydantic import BaseModel, Field, field_validator, ValidationError, ConfigDict
 from app.core.agent.tools.base import Tool, ToolParameter, ToolResult
 from app.core.sandbox.container import SandboxContainer
 from app.core.sandbox.security import validate_file_path
+
+
+# Pydantic schemas for parameter validation
+
+class FileReadInput(BaseModel):
+    """Input schema for file_read tool."""
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [{
+                "path": "/workspace/out/script.py"
+            }, {
+                "path": "/workspace/project_files/data.csv"
+            }]
+        }
+    )
+
+    path: str = Field(
+        description="Full path to the file (e.g., '/workspace/project_files/data.csv' or '/workspace/out/script.py')"
+    )
+
+    @field_validator('path')
+    @classmethod
+    def validate_path(cls, v: str) -> str:
+        if not v.startswith('/workspace/'):
+            raise ValueError('Path must start with /workspace/')
+        return v
+
+
+class FileWriteInput(BaseModel):
+    """Input schema for file_write tool."""
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [{
+                "filename": "script.py",
+                "content": "print('Hello, World!')"
+            }, {
+                "filename": "config.json",
+                "content": '{"key": "value"}'
+            }]
+        }
+    )
+
+    filename: str = Field(
+        description="Filename to write (e.g., 'script.py', 'config.json'). Must be a simple filename without path separators."
+    )
+    content: str = Field(
+        description="Content to write to the file"
+    )
+
+    @field_validator('filename')
+    @classmethod
+    def validate_filename(cls, v: str) -> str:
+        if '/' in v or '\\' in v or v.startswith('.'):
+            raise ValueError('Filename must be a simple filename without path separators or leading dots')
+        return v
+
+
+class FileEditInput(BaseModel):
+    """Input schema for file_edit tool."""
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [{
+                "path": "/workspace/out/script.py",
+                "old_content": "print('Hello')",
+                "new_content": "print('Hello, World!')"
+            }]
+        }
+    )
+
+    path: str = Field(
+        description="Full path to the file to edit (e.g., '/workspace/out/script.py')"
+    )
+    old_content: str = Field(
+        description="Exact content to search for and replace (must match exactly including whitespace)"
+    )
+    new_content: str = Field(
+        description="New content to replace the old content with"
+    )
+
+    @field_validator('path')
+    @classmethod
+    def validate_path(cls, v: str) -> str:
+        if not v.startswith('/workspace/'):
+            raise ValueError('Path must start with /workspace/')
+        return v
 
 
 class FileReadTool(Tool):
@@ -43,6 +129,11 @@ class FileReadTool(Tool):
                 required=True,
             ),
         ]
+
+    @property
+    def input_schema(self) -> Type[BaseModel]:
+        """Pydantic schema for parameter validation."""
+        return FileReadInput
 
     async def execute(self, path: str, **kwargs) -> ToolResult:
         """Read a file from the sandbox.
@@ -134,6 +225,11 @@ class FileWriteTool(Tool):
                 required=True,
             ),
         ]
+
+    @property
+    def input_schema(self) -> Type[BaseModel]:
+        """Pydantic schema for parameter validation."""
+        return FileWriteInput
 
     async def execute(self, filename: str, content: str, **kwargs) -> ToolResult:
         """Write content to a file in the output directory.
@@ -237,6 +333,33 @@ class FileEditTool(Tool):
                 required=True,
             ),
         ]
+
+    @property
+    def input_schema(self) -> Type[BaseModel]:
+        """Pydantic schema for parameter validation."""
+        return FileEditInput
+
+    @property
+    def handle_validation_error(self):
+        """Custom validation error handler for file_edit."""
+        def handler(error: ValidationError) -> str:
+            errors = error.errors()
+            error_details = "\n".join([
+                f"  - {err['loc'][0]}: {err['msg']}"
+                for err in errors
+            ])
+
+            return (
+                f"Parameter validation failed for 'file_edit':\n{error_details}\n\n"
+                f"Common mistakes:\n"
+                f"  - Using 'old_content=' instead of 'old_content'\n"
+                f"  - Using ',' instead of parameter names\n"
+                f"  - Missing required parameters: path, old_content, new_content\n\n"
+                f"Example valid call:\n"
+                f'{{"path": "/workspace/out/file.py", "old_content": "old text", "new_content": "new text"}}\n\n'
+                f"Please check the parameter names and try again."
+            )
+        return handler
 
     async def execute(
         self,

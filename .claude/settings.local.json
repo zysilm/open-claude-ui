@@ -48,7 +48,11 @@
       "Bash(node test-debug-panel.mjs:*)",
       "Bash(node test-direct-chat.mjs:*)",
       "Bash(timeout 30 node:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "WebFetch(domain:python.langchain.com)",
+      "WebFetch(domain:blog.langchain.com)",
+      "WebFetch(domain:medium.com)",
+      "WebFetch(domain:google.github.io)"
     ],
     "deny": [],
     "ask": []

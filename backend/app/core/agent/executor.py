@@ -42,6 +42,8 @@ class ReActAgent:
         tool_registry: ToolRegistry,
         max_iterations: int = 10,
         system_instructions: str | None = None,
+        max_validation_retries: int = 3,
+        max_same_tool_retries: int = 5,
     ):
         """Initialize the ReAct agent.
 
@@ -50,11 +52,20 @@ class ReActAgent:
             tool_registry: Registry of available tools
             max_iterations: Maximum number of reasoning iterations
             system_instructions: Custom system instructions for the agent
+            max_validation_retries: Maximum validation retry attempts before giving up
+            max_same_tool_retries: Maximum retries for same tool to prevent loops
         """
         self.llm = llm_provider
         self.tools = tool_registry
         self.max_iterations = max_iterations
         self.system_instructions = system_instructions or self._default_system_instructions()
+        self.max_validation_retries = max_validation_retries
+        self.max_same_tool_retries = max_same_tool_retries
+
+        # Track retries per iteration (reset each iteration)
+        self.validation_retry_count = 0
+        # Track tool usage to detect loops
+        self.tool_call_history = []
 
     def _default_system_instructions(self) -> str:
         """Get default system instructions for the agent."""
@@ -202,6 +213,68 @@ Available tools will be provided as function calling options. Use them to accomp
                     # Execute tool
                     tool = self.tools.get(function_name)
                     if tool:
+                        # Use validate_and_execute for parameter validation
+                        result = await tool.validate_and_execute(**args)
+
+                        # Handle validation errors internally (don't show in frontend)
+                        if result.is_validation_error:
+                            print(f"[REACT AGENT] Validation error for {function_name}: {result.error}")
+
+                            # Track validation retries
+                            self.validation_retry_count += 1
+
+                            # Check if we've exceeded retry limit
+                            if self.validation_retry_count >= self.max_validation_retries:
+                                # Max retries exceeded - add suggestion to try different approach
+                                error_with_suggestion = (
+                                    f"{result.error}\n\n"
+                                    f"You've attempted this {self.validation_retry_count} times with validation errors. "
+                                    f"Consider:\n"
+                                    f"1. Using a different tool to accomplish the task\n"
+                                    f"2. Breaking the task into smaller steps\n"
+                                    f"3. Carefully reviewing the tool's parameter requirements"
+                                )
+                                messages.append({
+                                    "role": "user",
+                                    "content": f"Tool '{function_name}' validation failed: {error_with_suggestion}",
+                                })
+                                # Reset counter for next tool
+                                self.validation_retry_count = 0
+                            else:
+                                # Add validation error to conversation for LLM to learn from
+                                messages.append({
+                                    "role": "user",
+                                    "content": f"Tool '{function_name}' validation failed (attempt {self.validation_retry_count}/{self.max_validation_retries}): {result.error}",
+                                })
+
+                            # Continue to next iteration (don't save as agent_action)
+                            continue
+
+                        # Reset validation retry counter on successful validation
+                        self.validation_retry_count = 0
+
+                        # Track tool call for loop detection
+                        self.tool_call_history.append(function_name)
+
+                        # Check for tool call loops (same tool failing repeatedly)
+                        recent_calls = self.tool_call_history[-self.max_same_tool_retries:]
+                        if len(recent_calls) == self.max_same_tool_retries and len(set(recent_calls)) == 1:
+                            # Same tool called max_same_tool_retries times in a row
+                            print(f"[REACT AGENT] Loop detected: {function_name} called {self.max_same_tool_retries} times")
+                            observation = (
+                                f"Error: Tool '{function_name}' has been called {self.max_same_tool_retries} times "
+                                f"consecutively without success. This suggests the current approach isn't working. "
+                                f"Please try a different tool or approach to accomplish the task."
+                            )
+                            messages.append({
+                                "role": "user",
+                                "content": observation,
+                            })
+                            # Clear history to allow trying again later if needed
+                            self.tool_call_history = []
+                            continue
+
+                        # Execution successful or execution error (not validation) - show in frontend
                         yield {
                             "type": "action",
                             "content": f"Using tool: {function_name}",
@@ -209,8 +282,6 @@ Available tools will be provided as function calling options. Use them to accomp
                             "args": args,
                             "step": iteration + 1,
                         }
-
-                        result = await tool.execute(**args)
 
                         # Create observation
                         observation = result.output if result.success else f"Error: {result.error}"
@@ -223,7 +294,6 @@ Available tools will be provided as function calling options. Use them to accomp
                         }
 
                         # Add tool result to conversation as user message
-                        # (GPT-5 doesn't support 'function' role)
                         messages.append({
                             "role": "user",
                             "content": f"Tool '{function_name}' returned: {observation}",
