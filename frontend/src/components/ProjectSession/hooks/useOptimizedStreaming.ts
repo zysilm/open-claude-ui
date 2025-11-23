@@ -251,6 +251,12 @@ export const useOptimizedStreaming = ({ sessionId, initialMessages = [] }: UseOp
         eventBufferRef.current = [];
         break;
 
+      case 'title_updated':
+        console.log('[TITLE] Session title updated:', data.title);
+        // Invalidate chat sessions query to refresh sidebar with new title
+        queryClient.invalidateQueries({ queryKey: ['chatSessions'] });
+        break;
+
       default:
         console.warn('Unknown WebSocket message type:', data.type);
     }

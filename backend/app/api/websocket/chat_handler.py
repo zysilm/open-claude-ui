@@ -211,6 +211,9 @@ class ChatWebSocketHandler:
             "message_id": user_message.id
         })
 
+        # Generate title for first message (run in background)
+        asyncio.create_task(self._generate_title_if_needed(session_id, content, agent_config))
+
         # Get conversation history (pass model name for vision support)
         history = await self._get_conversation_history(session_id, agent_config.llm_model)
         print(f"[CHAT HANDLER] Conversation history length: {len(history)}")
@@ -866,3 +869,82 @@ class ChatWebSocketHandler:
                         })
 
         return history
+
+    async def _generate_title_if_needed(
+        self,
+        session_id: str,
+        user_message: str,
+        agent_config: AgentConfiguration
+    ):
+        """
+        Generate a title for the chat session based on the first user message.
+        Only generates if this is the first message and title hasn't been auto-generated yet.
+        """
+        try:
+            # Check if session needs title generation
+            session_query = select(ChatSession).where(ChatSession.id == session_id)
+            session_result = await self.db.execute(session_query)
+            session = session_result.scalar_one_or_none()
+
+            if not session:
+                return
+
+            # Only generate if title was auto-generated flag is 'N'
+            if session.title_auto_generated != 'N':
+                print(f"[TITLE GEN] Skipping - title already auto-generated for session {session_id}")
+                return
+
+            # Check if this is the first user message
+            message_count_query = select(Message).where(
+                Message.chat_session_id == session_id,
+                Message.role == MessageRole.USER
+            )
+            message_count_result = await self.db.execute(message_count_query)
+            messages = message_count_result.scalars().all()
+
+            if len(messages) != 1:
+                print(f"[TITLE GEN] Skipping - not first message (count: {len(messages)})")
+                return
+
+            print(f"[TITLE GEN] Generating title for session {session_id}")
+
+            # Create LLM provider for title generation
+            llm_provider = await create_llm_provider_with_db(
+                provider=agent_config.llm_provider,
+                model=agent_config.llm_model,
+                llm_config=agent_config.llm_config,
+                db=self.db,
+            )
+
+            # Generate title using LLM
+            prompt = f"""Generate a concise title (max 6 words) for a chat session based on this first user message:
+
+"{user_message}"
+
+Respond with ONLY the title, nothing else. The title should capture the main topic or intent."""
+
+            title_response = ""
+            async for chunk in llm_provider.generate_stream([{"role": "user", "content": prompt}]):
+                title_response += chunk
+
+            # Clean up title (remove quotes, trim whitespace)
+            generated_title = title_response.strip().strip('"').strip("'")[:100]  # Max 100 chars
+
+            # Update session with generated title
+            session.name = generated_title
+            session.title_auto_generated = 'Y'
+            await self.db.commit()
+
+            print(f"[TITLE GEN] Generated title: '{generated_title}'")
+
+            # Send title update to client via WebSocket
+            await self.websocket.send_json({
+                "type": "title_updated",
+                "session_id": session_id,
+                "title": generated_title
+            })
+
+        except Exception as e:
+            print(f"[TITLE GEN] Error generating title: {str(e)}")
+            import traceback
+            traceback.print_exc()

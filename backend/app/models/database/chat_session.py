@@ -26,6 +26,7 @@ class ChatSession(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     container_id = Column(String(100), nullable=True)  # Docker container ID
     status = Column(Enum(ChatSessionStatus), default=ChatSessionStatus.ACTIVE, nullable=False)
+    title_auto_generated = Column(String(1), default="N", nullable=False)  # Y/N flag
 
     # Environment settings (set up dynamically by agent)
     environment_type = Column(String(50), nullable=True)  # e.g., "python3.11", "nodejs", null if not set up
