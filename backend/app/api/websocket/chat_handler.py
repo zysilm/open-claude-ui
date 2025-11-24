@@ -507,7 +507,6 @@ class ChatWebSocketHandler:
             async for event in agent.run(user_message, history, cancel_event=self.cancel_event):
                 event_count += 1
                 event_type = event.get("type")
-                print(f"[AGENT] Event #{event_count}: {event_type}")
 
                 if event_type == "cancelled":
                     # Agent was cancelled
@@ -519,30 +518,6 @@ class ChatWebSocketHandler:
                         "partial_content": event.get("partial_content")
                     })
                     break
-
-                elif event_type == "thought":
-                    # Agent is thinking - add to content
-                    chunk = event.get("content", "")
-                    assistant_content += chunk
-                    chunks_since_commit += 1
-                    print(f"[AGENT] Thought: {chunk[:100]}...")
-
-                    # Send to WebSocket if connected
-                    try:
-                        await self.websocket.send_json({
-                            "type": "thought",
-                            "content": chunk,
-                            "step": event.get("step", 0)
-                        })
-                    except:
-                        print(f"[AGENT] WebSocket disconnected during thought, continuing execution...")
-
-                    # Batched commit: only commit periodically
-                    assistant_message.content = assistant_content
-                    if chunks_since_commit >= CHUNK_COMMIT_INTERVAL:
-                        await self.db.commit()
-                        chunks_since_commit = 0
-                        print(f"[AGENT] Committed content update ({len(assistant_content)} chars)")
 
                 elif event_type == "action_streaming":
                     # Real-time feedback when tool name is first received

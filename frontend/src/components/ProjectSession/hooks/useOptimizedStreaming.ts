@@ -13,7 +13,7 @@ export interface Message {
 }
 
 export interface StreamEvent {
-  type: 'chunk' | 'thought' | 'action' | 'action_streaming' | 'action_args_chunk' | 'observation';
+  type: 'chunk' | 'action' | 'action_streaming' | 'action_args_chunk' | 'observation';
   content?: string;
   tool?: string;
   args?: any;
@@ -116,14 +116,6 @@ export const useOptimizedStreaming = ({ sessionId, initialMessages = [] }: UseOp
         eventBufferRef.current.push({
           type: 'chunk',
           content: data.content,
-        });
-        break;
-
-      case 'thought':
-        eventBufferRef.current.push({
-          type: 'thought',
-          content: data.content,
-          step: data.step,
         });
         break;
 

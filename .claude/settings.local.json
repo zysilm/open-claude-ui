@@ -63,7 +63,8 @@
       "WebFetch(domain:www.anthropic.com)",
       "WebFetch(domain:swe-agent.com)",
       "WebFetch(domain:aiengineerguide.com)",
-      "WebFetch(domain:platform.claude.com)"
+      "WebFetch(domain:platform.claude.com)",
+      "WebFetch(domain:gist.github.com)"
     ],
     "deny": [],
     "ask": []

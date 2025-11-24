@@ -37,14 +37,6 @@ export const MemoizedMessage = memo(
         case 'chunk':
           return <span key={index}>{event.content}</span>;
 
-        case 'thought':
-          return (
-            <details key={index} className="thought-details" open>
-              <summary>💭 Thinking... (Step {event.step})</summary>
-              <div className="thought-content">{event.content}</div>
-            </details>
-          );
-
         case 'action_args_chunk':
           return (
             <div key={index} className="action-usage args-streaming">
@@ -182,6 +174,7 @@ export const MemoizedMessage = memo(
                   });
 
                   const renderedElements: JSX.Element[] = [];
+
                   let accumulatedChunks = '';
                   let chunkStartIndex = 0;
 
