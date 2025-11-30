@@ -48,6 +48,7 @@ export interface ChatSession {
   id: string;
   project_id: string;
   name: string;
+  updated_at: string;
   created_at: string;
   container_id: string | null;
   status: 'active' | 'archived';
