@@ -1012,6 +1012,7 @@ Respond with ONLY the title, nothing else. The title should capture the main top
         })
 
         # Send buffered chunks if available
+        last_sent_index = 0
         if session_id in _chunk_buffers:
             buffer = _chunk_buffers[session_id]
             # Create a snapshot of the buffer to avoid "deque mutated during iteration" error
@@ -1027,17 +1028,32 @@ Respond with ONLY the title, nothing else. The title should capture the main top
                     print(f"[TASK REGISTRY] Failed to send buffered chunk")
                     break
 
-        # Keep WebSocket open and wait for task to complete
+            last_sent_index = len(buffer_snapshot)
+
+        # Keep WebSocket open and forward new chunks as they arrive
         try:
             while existing_task.status == 'running' and not existing_task.task.done():
-                await asyncio.sleep(0.1)
+                # Check for new chunks in the buffer
+                if session_id in _chunk_buffers:
+                    buffer = _chunk_buffers[session_id]
+                    current_buffer_size = len(buffer)
 
-                # Check if WebSocket is still connected
-                try:
-                    await self.websocket.send_json({"type": "heartbeat"})
-                except:
-                    print(f"[TASK REGISTRY] WebSocket disconnected while waiting for task")
-                    break
+                    # Send any new chunks that arrived since last check
+                    if current_buffer_size > last_sent_index:
+                        new_chunks = list(buffer)[last_sent_index:]
+                        print(f"[TASK REGISTRY] Forwarding {len(new_chunks)} new chunks")
+
+                        for chunk in new_chunks:
+                            try:
+                                await self.websocket.send_json(chunk)
+                                await asyncio.sleep(0.001)  # Small delay between chunks
+                            except:
+                                print(f"[TASK REGISTRY] Failed to send new chunk")
+                                return
+
+                        last_sent_index = current_buffer_size
+
+                await asyncio.sleep(0.05)  # Check for new chunks every 50ms
 
         except WebSocketDisconnect:
             print(f"[TASK REGISTRY] WebSocket disconnected from resumed stream")

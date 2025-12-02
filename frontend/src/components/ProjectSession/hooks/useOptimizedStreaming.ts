@@ -23,9 +23,14 @@ export const useOptimizedStreaming = ({ sessionId, initialMessages = [] }: UseOp
   const chunkBufferRef = useRef<string>('');
   const eventBufferRef = useRef<StreamEvent[]>([]);
 
+  // Track the currently streaming message ID
+  const streamingMessageIdRef = useRef<string | null>(null);
+
   // Optimized: 30ms interval for ChatGPT-like streaming speed
   useEffect(() => {
     if (!isStreaming) return;
+
+    console.log('[FLUSH INTERVAL] Starting with message ID:', streamingMessageIdRef.current);
 
     const flushInterval = setInterval(() => {
       const bufferedContent = chunkBufferRef.current;
@@ -39,14 +44,42 @@ export const useOptimizedStreaming = ({ sessionId, initialMessages = [] }: UseOp
       if (bufferedContent) {
         setMessages(prev => {
           const updated = [...prev];
-          const lastMessage = updated[updated.length - 1];
 
-          if (lastMessage && lastMessage.role === 'assistant') {
-            // Immutable update
-            updated[updated.length - 1] = {
-              ...lastMessage,
-              content: lastMessage.content + bufferedContent
+          // IMPORTANT: Always read the current ref value, not from closure
+          const currentMessageId = streamingMessageIdRef.current;
+
+          // Find the message by tracked ID or fallback to last assistant message
+          let targetIndex = -1;
+          if (currentMessageId) {
+            targetIndex = updated.findIndex(m => m.id === currentMessageId);
+            if (targetIndex === -1) {
+              console.log('[FLUSH] Could not find message with ID:', currentMessageId);
+              console.log('[FLUSH] Available message IDs:', updated.map(m => m.id));
+            } else {
+              console.log('[FLUSH] Found message with ID:', currentMessageId, 'at index:', targetIndex);
+            }
+          }
+
+          // Fallback to last assistant message if ID not found
+          if (targetIndex === -1) {
+            for (let i = updated.length - 1; i >= 0; i--) {
+              if (updated[i].role === 'assistant') {
+                targetIndex = i;
+                console.log('[FLUSH] Using fallback assistant message at index:', targetIndex);
+                break;
+              }
+            }
+          }
+
+          if (targetIndex !== -1) {
+            // Update the target message with buffered content
+            updated[targetIndex] = {
+              ...updated[targetIndex],
+              content: updated[targetIndex].content + bufferedContent
             };
+            console.log('[FLUSH] Applied', bufferedContent.length, 'chars to message at index:', targetIndex);
+          } else {
+            console.warn('[FLUSH] No target message found for buffered content!');
           }
 
           return updated;
@@ -79,11 +112,15 @@ export const useOptimizedStreaming = ({ sessionId, initialMessages = [] }: UseOp
         eventBufferRef.current = [];
         setStreamEvents([]);
 
+        // Track the message ID for this stream
+        const messageId = data.message_id || 'temp-' + Date.now();
+        streamingMessageIdRef.current = messageId;
+
         // Add new assistant message
         setMessages(prev => [
           ...prev,
           {
-            id: 'temp-' + Date.now(),
+            id: messageId,
             chat_session_id: sessionId,
             role: 'assistant',
             content: '',
@@ -95,7 +132,16 @@ export const useOptimizedStreaming = ({ sessionId, initialMessages = [] }: UseOp
 
       case 'chunk':
         // Just accumulate in buffer - interval will flush
-        chunkBufferRef.current += data.content;
+        const chunkMessageId = streamingMessageIdRef.current;
+        console.log('[CHUNK] Received chunk. Current streamingMessageIdRef:', chunkMessageId, 'Content length:', data.content?.length);
+
+        if (!chunkMessageId) {
+          console.warn('[CHUNK] No message ID set! This chunk may be lost.');
+        }
+
+        chunkBufferRef.current += data.content || '';
+        console.log('[CHUNK] Buffer now has', chunkBufferRef.current.length, 'chars total');
+
         eventBufferRef.current.push({
           type: 'chunk',
           content: data.content,
@@ -156,12 +202,27 @@ export const useOptimizedStreaming = ({ sessionId, initialMessages = [] }: UseOp
         if (finalContent) {
           setMessages(prev => {
             const updated = [...prev];
-            const lastMessage = updated[updated.length - 1];
 
-            if (lastMessage && lastMessage.role === 'assistant') {
-              updated[updated.length - 1] = {
-                ...lastMessage,
-                content: lastMessage.content + finalContent
+            // Find the message by tracked ID or fallback to last assistant message
+            let targetIndex = -1;
+            if (streamingMessageIdRef.current) {
+              targetIndex = updated.findIndex(m => m.id === streamingMessageIdRef.current);
+            }
+
+            // Fallback to last assistant message if ID not found
+            if (targetIndex === -1) {
+              for (let i = updated.length - 1; i >= 0; i--) {
+                if (updated[i].role === 'assistant') {
+                  targetIndex = i;
+                  break;
+                }
+              }
+            }
+
+            if (targetIndex !== -1) {
+              updated[targetIndex] = {
+                ...updated[targetIndex],
+                content: updated[targetIndex].content + finalContent
               };
             }
 
@@ -173,9 +234,10 @@ export const useOptimizedStreaming = ({ sessionId, initialMessages = [] }: UseOp
           setStreamEvents(prev => [...prev, ...finalEvents]);
         }
 
-        // Clear buffers
+        // Clear buffers and message ID tracking
         chunkBufferRef.current = '';
         eventBufferRef.current = [];
+        streamingMessageIdRef.current = null;
 
         // Stop streaming
         setIsStreaming(false);
@@ -209,8 +271,14 @@ export const useOptimizedStreaming = ({ sessionId, initialMessages = [] }: UseOp
         break;
 
       case 'error':
-        console.error('WebSocket error:', data.content);
-        setError(data.content || 'An error occurred');
+        console.error('WebSocket error:', data.content || data.message);
+        const errorMessage = data.content || data.message || 'An error occurred';
+
+        // Only set error if it's not about missing task (expected when no active stream)
+        if (!errorMessage.includes('No active task found')) {
+          setError(errorMessage);
+        }
+
         setIsStreaming(false);
         // Flush any pending content
         if (chunkBufferRef.current) {
@@ -247,8 +315,65 @@ export const useOptimizedStreaming = ({ sessionId, initialMessages = [] }: UseOp
       case 'resuming_stream':
         // Indicates we're reconnecting to an existing stream
         console.log('[STREAM RESUME] Reconnecting to existing stream:', data.message_id);
+        setError(null);
+
+        // Clear buffers for resumed streaming session
+        chunkBufferRef.current = '';
+        eventBufferRef.current = [];
+        setStreamEvents([]);
+
+        // Track the message ID for this resumed stream
+        const resumedMessageId = data.message_id || 'temp-resumed-' + Date.now();
+        streamingMessageIdRef.current = resumedMessageId;
+        console.log('[STREAM RESUME] Set streamingMessageIdRef to:', resumedMessageId);
+
+        // Ensure we have an assistant message to append chunks to
+        setMessages(prev => {
+          // Check if we already have an assistant message (last message might be it)
+          const lastMessage = prev[prev.length - 1];
+          const hasAssistantMessage = lastMessage && lastMessage.role === 'assistant';
+
+          // Also check by message ID if provided
+          const existingMessage = data.message_id ?
+            prev.find(m => m.id === data.message_id) : null;
+
+          if (existingMessage) {
+            // Message already exists, no need to add
+            console.log('[STREAM RESUME] Found existing message with ID:', data.message_id);
+            // Ensure the ref matches
+            streamingMessageIdRef.current = existingMessage.id;
+            return prev;
+          } else if (hasAssistantMessage && !lastMessage.content) {
+            // Last message is an empty assistant message, likely from before refresh
+            console.log('[STREAM RESUME] Using existing empty assistant message, updating its ID from', lastMessage.id, 'to', resumedMessageId);
+            // Update the existing message's ID to match the resumed stream's ID
+            const updatedMessages = [...prev];
+            const lastIndex = updatedMessages.length - 1;
+            updatedMessages[lastIndex] = {
+              ...updatedMessages[lastIndex],
+              id: resumedMessageId
+            };
+            return updatedMessages;
+          } else {
+            // Create a new assistant message for the resumed stream
+            console.log('[STREAM RESUME] Creating new assistant message with ID:', resumedMessageId);
+            return [
+              ...prev,
+              {
+                id: resumedMessageId,
+                chat_session_id: sessionId,
+                role: 'assistant',
+                content: '', // Will be filled with buffered chunks
+                created_at: new Date().toISOString(),
+                message_metadata: {}
+              }
+            ];
+          }
+        });
+
+        // Set isStreaming to trigger the flush interval
+        console.log('[STREAM RESUME] Setting isStreaming to true');
         setIsStreaming(true);
-        // The backend will send buffered chunks after this message
         break;
 
       default:

@@ -65,7 +65,8 @@
       "WebFetch(domain:aiengineerguide.com)",
       "WebFetch(domain:platform.claude.com)",
       "WebFetch(domain:gist.github.com)",
-      "Bash(npx tailwindcss:*)"
+      "Bash(npx tailwindcss:*)",
+      "Bash(npx playwright codegen:*)"
     ],
     "deny": [],
     "ask": []
