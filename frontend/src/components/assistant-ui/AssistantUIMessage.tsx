@@ -110,16 +110,29 @@ export const AssistantUIMessage: React.FC<AssistantUIMessageProps> = ({
         if (event.type === 'chunk') {
           streamingText += event.content || '';
         } else if (event.type === 'action_args_chunk') {
-          // Streaming tool arguments
+          // Streaming tool arguments - partial_args is a raw JSON string
           const toolId = `${event.tool}-stream`;
           let toolCall = toolCallsMap.get(toolId);
+
+          // partial_args is the accumulated JSON string so far
+          const argsString = event.partial_args || event.content || '';
+
+          // Try to parse the partial args for display
+          let parsedArgs = {};
+          try {
+            if (argsString) {
+              parsedArgs = JSON.parse(argsString);
+            }
+          } catch {
+            // Incomplete JSON is expected during streaming
+          }
 
           if (!toolCall) {
             toolCall = {
               toolCallId: toolId,
               toolName: event.tool || 'unknown',
-              args: {},
-              argsText: '',
+              args: parsedArgs,
+              argsText: argsString, // Show raw string as-is
               status: { type: 'running' } as ToolCallMessagePartStatus,
               addResult: () => {},
               resume: () => {},
@@ -130,9 +143,8 @@ export const AssistantUIMessage: React.FC<AssistantUIMessageProps> = ({
           } else {
             const updatedToolCall = {
               ...toolCall,
-              args: event.partial_args || toolCall.args,
-              argsText: event.partial_args ? JSON.stringify(event.partial_args, null, 2) :
-                       event.content || toolCall.argsText,
+              args: parsedArgs,
+              argsText: argsString, // Show raw string as-is
             };
             toolCallsMap.set(toolId, updatedToolCall);
             const index = toolCalls.findIndex(tc => tc.toolCallId === toolId);

@@ -208,7 +208,8 @@ class ChatWebSocketHandler:
             if existing_task and existing_task.status == 'running':
                 print(f"[TASK REGISTRY] Found existing running task for session {session_id}")
                 await self._attach_to_existing_stream(session_id, existing_task)
-                return  # Exit after attaching to existing stream
+                # Don't return - fall through to main message loop to accept new messages
+                print(f"[TASK REGISTRY] Stream attachment completed, continuing to main message loop")
 
             # Verify session exists and get project config
             session_query = select(ChatSession).where(ChatSession.id == session_id)
