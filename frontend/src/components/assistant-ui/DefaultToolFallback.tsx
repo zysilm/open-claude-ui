@@ -229,7 +229,7 @@ export const DefaultToolFallback: React.FC<ToolCallMessagePartProps> = ({
         {hasResult && isBinary && (
             <div className={`observation success`}>
                 <ObservationContent
-                    content=''
+                    content={(result as any).text || ''}
                     metadata={result}
                 />
             </div>

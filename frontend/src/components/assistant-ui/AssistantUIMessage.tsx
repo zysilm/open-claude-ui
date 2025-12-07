@@ -169,13 +169,32 @@ export const AssistantUIMessage: React.FC<AssistantUIMessageProps> = ({
           const callContent = block.content as any;
           const result = toolResultsById.get(block.id);
           const resultContent = result?.content as any;
+          const resultMetadata = result?.block_metadata as any;
+
+          // Build result object that includes binary data if present
+          let resultValue: any = resultContent?.result || resultContent?.error;
+
+          // Check for binary data in content OR metadata (backend stores it in metadata)
+          const isBinary = resultContent?.is_binary || resultMetadata?.is_binary;
+          const binaryData = resultContent?.binary_data || resultMetadata?.image_data;
+          const binaryType = resultContent?.binary_type || resultMetadata?.type;
+
+          if (isBinary && binaryData) {
+            resultValue = {
+              is_binary: true,
+              type: 'image',
+              image_data: binaryData,
+              binary_type: binaryType,
+              text: resultContent?.result || '',
+            };
+          }
 
           toolCallsById.set(block.id, {
             toolCallId: block.id,
             toolName: callContent.tool_name || 'unknown',
             args: callContent.arguments || {},
             argsText: JSON.stringify(callContent.arguments || {}, null, 2),
-            result: resultContent?.result || resultContent?.error,
+            result: resultValue,
             isError: resultContent ? !resultContent.success : false,
             status: { type: result ? 'complete' : 'running' } as ToolCallMessagePartStatus,
             sequenceNumber: block.sequence_number,
