@@ -349,13 +349,15 @@ class FileEditTool(Tool):
     @property
     def description(self) -> str:
         return (
-            "Make precise edits to existing files by replacing specific content. "
-            "Searches for 'old_content' and replaces it with 'new_content' (exactly once). "
-            "This is the PREFERRED way to modify existing files - much safer than file_write. "
-            "Use this for: fixing bugs, updating functions, modifying config values, "
-            "refactoring code, etc. The old_content must match EXACTLY (including whitespace). "
-            "Returns error if: file not found, old_content not found, or old_content appears "
-            "multiple times (ambiguous). Make old_content specific enough to match only once."
+            "Text-based find/replace for NON-CODE files ONLY. Use for:\n"
+            "- JSON, YAML, TOML configuration files\n"
+            "- Markdown, README, documentation\n"
+            "- Plain text files\n"
+            "- .env files, .gitignore, etc.\n\n"
+            "⚠️ DO NOT USE FOR CODE FILES (.py, .js, .ts, .go, etc.)\n"
+            "For ALL code edits, use ast_edit instead - it handles whitespace/indentation "
+            "automatically and won't fail due to formatting mismatches.\n\n"
+            "IMPORTANT: old_content must match EXACTLY including whitespace."
         )
 
     @property

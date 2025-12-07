@@ -16,7 +16,7 @@ from sqlalchemy import func
 from app.core.llm import create_llm_provider_with_db
 from app.core.storage.database import AsyncSessionLocal
 from app.core.agent.executor import ReActAgent
-from app.core.agent.tools import ToolRegistry, BashTool, FileReadTool, FileWriteTool, FileEditTool, SearchTool, SetupEnvironmentTool, ThinkTool
+from app.core.agent.tools import ToolRegistry, BashTool, FileReadTool, FileWriteTool, FileEditTool, SearchTool, AstEditTool, SetupEnvironmentTool, ThinkTool
 from app.core.sandbox.manager import get_container_manager
 from app.api.websocket.task_registry import get_agent_task_registry
 from app.api.websocket.streaming_manager import streaming_manager
@@ -715,10 +715,14 @@ class ChatWebSocketHandler:
                 tool_registry.register(FileReadTool(container, agent_config.llm_model))
             if "file_write" in agent_config.enabled_tools:
                 tool_registry.register(FileWriteTool(container))
-            if "file_edit" in agent_config.enabled_tools:
-                tool_registry.register(FileEditTool(container))
+            # Note: file_edit is deprecated - ast_edit handles both code and non-code files
+            # if "file_edit" in agent_config.enabled_tools:
+            #     tool_registry.register(FileEditTool(container))
             if "search" in agent_config.enabled_tools:
                 tool_registry.register(SearchTool(container))
+            # Note: ast_search is deprecated - unified search tool handles code structures too
+            if "edit" in agent_config.enabled_tools:
+                tool_registry.register(AstEditTool(container))
         else:
             # Environment not set up - only register setup_environment tool
             tool_registry.register(SetupEnvironmentTool(self.db, session_id, container_manager))
@@ -996,12 +1000,17 @@ class ChatWebSocketHandler:
                             if "file_write" in agent_config.enabled_tools:
                                 tool_registry.register(FileWriteTool(container))
                                 print(f"[AGENT]   ✓ Registered FileWriteTool")
-                            if "file_edit" in agent_config.enabled_tools:
-                                tool_registry.register(FileEditTool(container))
-                                print(f"[AGENT]   ✓ Registered FileEditTool")
+                            # Note: file_edit is deprecated - ast_edit handles both code and non-code files
+                            # if "file_edit" in agent_config.enabled_tools:
+                            #     tool_registry.register(FileEditTool(container))
+                            #     print(f"[AGENT]   ✓ Registered FileEditTool")
                             if "search" in agent_config.enabled_tools:
                                 tool_registry.register(SearchTool(container))
-                                print(f"[AGENT]   ✓ Registered SearchTool")
+                                print(f"[AGENT]   ✓ Registered SearchTool (unified)")
+                            # Note: ast_search is deprecated - unified search handles code structures
+                            if "edit" in agent_config.enabled_tools:
+                                tool_registry.register(AstEditTool(container))
+                                print(f"[AGENT]   ✓ Registered EditTool")
 
                             # Always re-register ThinkTool
                             tool_registry.register(ThinkTool())

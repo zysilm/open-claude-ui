@@ -28,8 +28,9 @@ const AVAILABLE_TOOLS = [
   { id: 'bash', name: 'Bash', description: 'Execute shell commands' },
   { id: 'file_read', name: 'File Read', description: 'Read file contents' },
   { id: 'file_write', name: 'File Write', description: 'Create/overwrite files' },
-  { id: 'file_edit', name: 'File Edit', description: 'Edit existing files' },
-  { id: 'search', name: 'Search', description: 'Search for files and content' },
+  { id: 'edit', name: 'Edit', description: 'Smart editing - AST-aware for code, text-based for config files' },
+  { id: 'search', name: 'Search', description: 'Universal search - code structures, text content, and filenames' },
+  { id: 'think', name: 'Think', description: 'Chain-of-thought reasoning for complex tasks' },
 ];
 
 const LLM_PROVIDERS = [

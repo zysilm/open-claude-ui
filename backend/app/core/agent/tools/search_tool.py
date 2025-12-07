@@ -26,11 +26,14 @@ class SearchTool(Tool):
     @property
     def description(self) -> str:
         return (
-            "Search for files or content within files in the sandbox environment. "
-            "Can search by filename pattern (e.g., '*.py', 'config.json') or "
-            "search for text content within files. Use this to explore the codebase, "
-            "find specific files, or locate where certain functions/variables are defined. "
-            "Searches are performed from the /workspace directory by default."
+            "Text-based search for files and content. Best for:\n"
+            "- Finding files by name pattern (e.g., '*.py', 'config.json')\n"
+            "- Searching for specific text/strings in files (grep-style)\n"
+            "- Quick exploration of the codebase\n"
+            "- Finding error messages, log strings, or literal text\n\n"
+            "USE ast_search INSTEAD when you need to find code structures like "
+            "'all function definitions' or 'all class declarations' - ast_search "
+            "understands code syntax and won't match text in comments/strings."
         )
 
     @property

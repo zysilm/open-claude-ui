@@ -82,7 +82,12 @@
       "Bash(pkill:*)",
       "Bash(cat:*)",
       "Bash(wc:*)",
-      "Bash(bun --version:*)"
+      "Bash(bun --version:*)",
+      "Bash(tree:*)",
+      "WebFetch(domain:www.npmjs.com)",
+      "WebFetch(domain:ast-grep.github.io)",
+      "Bash(./build_images.sh:*)",
+      "Bash(bash build_images.sh:*)"
     ],
     "deny": [],
     "ask": []

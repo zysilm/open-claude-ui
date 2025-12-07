@@ -3,9 +3,13 @@
 from app.core.agent.tools.base import Tool, ToolRegistry
 from app.core.agent.tools.bash_tool import BashTool
 from app.core.agent.tools.file_tools import FileReadTool, FileWriteTool, FileEditTool
-from app.core.agent.tools.search_tool import SearchTool
+from app.core.agent.tools.search_tool_unified import UnifiedSearchTool
+from app.core.agent.tools.ast_edit_tool import AstEditTool
 from app.core.agent.tools.environment_tool import SetupEnvironmentTool
 from app.core.agent.tools.think_tool import ThinkTool
+
+# Aliases for backward compatibility
+SearchTool = UnifiedSearchTool
 
 __all__ = [
     "Tool",
@@ -14,7 +18,9 @@ __all__ = [
     "FileReadTool",
     "FileWriteTool",
     "FileEditTool",
-    "SearchTool",
+    "UnifiedSearchTool",
+    "SearchTool",  # Alias
+    "AstEditTool",
     "SetupEnvironmentTool",
     "ThinkTool",
 ]

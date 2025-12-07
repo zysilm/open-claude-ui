@@ -12,13 +12,14 @@ RUN apt-get update && apt-get install -y \
     nano \
     && rm -rf /var/lib/apt/lists/*
 
-# Install common npm packages globally
+# Install common npm packages globally (including ast-grep for AST-aware code search)
 RUN npm install -g \
     typescript \
     ts-node \
     nodemon \
     eslint \
-    prettier
+    prettier \
+    @ast-grep/cli
 
 # Create workspace structure
 RUN mkdir -p /workspace/project_files \

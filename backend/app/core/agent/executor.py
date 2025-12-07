@@ -134,7 +134,7 @@ If a tool returns an error or unexpected result, acknowledge it and try to fix i
 
 ## Important Rules
 - ALWAYS use function calls to invoke tools - do not just describe what you would do
-- For file_edit: ALWAYS read the file first using file_read before editing
+- For edit: ALWAYS read the file first using file_read before editing
 - Think before acting, especially for complex or irreversible operations
 - After each tool result, consider whether you need to think through the implications
 
@@ -360,13 +360,13 @@ Use file_read('{file_path}') FIRST to see the exact content, then try your edit.
                         except json.JSONDecodeError:
                             args = {}
 
-                        # Validate file_edit requires file_read first
-                        if function_name == "file_edit":
+                        # Validate edit requires file_read first
+                        if function_name == "edit":
                             file_path = args.get("path", "")
                             should_proceed, validation_msg = self._validate_before_edit(messages, file_path)
 
                             if not should_proceed:
-                                print(f"[REACT AGENT] Validation failed for file_edit: {file_path}")
+                                print(f"[REACT AGENT] Validation failed for edit: {file_path}")
                                 # Add validation error to conversation
                                 messages.append({
                                     "role": "user",

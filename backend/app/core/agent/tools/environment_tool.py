@@ -35,7 +35,7 @@ class SetupEnvironmentTool(Tool):
     def description(self) -> str:
         return (
             "Set up a sandbox environment for code execution. **Call this FIRST** before using "
-            "bash, file_read, file_write, file_edit, or search tools. "
+            "bash, file_read, file_write, edit, or search tools. "
             "Choose the appropriate environment based on the user's task:\n\n"
             "- **python3.11**: Python 3.11 (recommended for general purpose, data science, ML, web scraping)\n"
             "- **python3.12**: Python 3.12 (latest Python features, async improvements)\n"
@@ -174,7 +174,7 @@ class SetupEnvironmentTool(Tool):
                 f"  • bash - Execute shell commands",
                 f"  • file_read - Read files",
                 f"  • file_write - Create/overwrite files",
-                f"  • file_edit - Edit existing files",
+                f"  • edit - Smart editing (AST-aware for code, text-based for config)",
                 f"  • search - Search for files or content",
             ])
 
