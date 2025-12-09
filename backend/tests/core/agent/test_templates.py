@@ -27,7 +27,7 @@ class TestAgentTemplate:
             enabled_tools=["bash", "file_read"],
             system_instructions="Be helpful",
             llm_provider="openai",
-            llm_model="gpt-4o-mini",
+            llm_model="gpt-5-mini",
             llm_config={"temperature": 0.7},
         )
 

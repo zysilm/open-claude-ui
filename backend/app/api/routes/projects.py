@@ -77,7 +77,7 @@ async def create_project(
             else ["bash", "file_read", "file_write", "edit_lines", "search", "think"]
         ),
         llm_provider=default_template.llm_provider if default_template else "openai",
-        llm_model=default_template.llm_model if default_template else "gpt-4o-mini",
+        llm_model=default_template.llm_model if default_template else "gpt-5-mini",
         llm_config=(
             default_template.llm_config
             if default_template

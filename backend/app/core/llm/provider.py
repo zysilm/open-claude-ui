@@ -36,18 +36,33 @@ class LLMProvider:
             self._set_api_key(provider, api_key)
 
     def _set_api_key(self, provider: str, api_key: str):
-        """Set API key in environment based on provider."""
-        key_mapping = {
-            "openai": "OPENAI_API_KEY",
-            "anthropic": "ANTHROPIC_API_KEY",
-            "azure": "AZURE_API_KEY",
-            "cohere": "COHERE_API_KEY",
-            "huggingface": "HUGGINGFACE_API_KEY",
-        }
+        """Set API key in environment based on provider.
 
-        env_key = key_mapping.get(provider.lower())
-        if env_key:
-            os.environ[env_key] = api_key
+        Uses LiteLLM's provider metadata when available, with fallback
+        to common naming conventions.
+        """
+        from app.core.llm.providers import PROVIDER_METADATA
+
+        provider_lower = provider.lower()
+
+        # First try to get from our provider metadata (synced with LiteLLM)
+        if provider_lower in PROVIDER_METADATA:
+            env_key = PROVIDER_METADATA[provider_lower].get("env_key")
+            if env_key:
+                os.environ[env_key] = api_key
+                return
+
+        # Fallback: try common naming conventions
+        # Most providers use PROVIDER_API_KEY format
+        provider_upper = provider_lower.upper().replace("-", "_")
+        common_patterns = [
+            f"{provider_upper}_API_KEY",
+            f"{provider_upper}AI_API_KEY",
+            f"{provider_upper}_KEY",
+        ]
+
+        # Set the first pattern as default
+        os.environ[common_patterns[0]] = api_key
 
     def _build_model_name(self) -> str:
         """Build the full model name for LiteLLM.

@@ -268,6 +268,23 @@ export interface ApiKeyTestResult {
   message: string;
 }
 
+// LLM Provider types
+export interface LLMModel {
+  id: string;
+  name: string;
+}
+
+export interface LLMProviderInfo {
+  id: string;
+  name: string;
+  models: LLMModel[];
+  env_key: string | null;
+}
+
+export interface LLMProvidersResponse {
+  providers: LLMProviderInfo[];
+}
+
 export const settingsAPI = {
   listApiKeys: async (): Promise<ApiKeyListResponse> => {
     const { data } = await api.get<ApiKeyListResponse>('/settings/api-keys');
@@ -287,6 +304,14 @@ export const settingsAPI = {
     const { data } = await api.post<ApiKeyTestResult>('/settings/api-keys/test', {
       provider,
       api_key: apiKey,
+    });
+    return data;
+  },
+
+  // Get available LLM providers and their models from LiteLLM
+  getLLMProviders: async (featuredOnly: boolean = true): Promise<LLMProvidersResponse> => {
+    const { data } = await api.get<LLMProvidersResponse>('/settings/llm-providers', {
+      params: { featured_only: featuredOnly },
     });
     return data;
   },

@@ -1,6 +1,9 @@
 .settings-page {
+  flex: 1;
   min-height: 100vh;
   background: #f9fafb;
+  display: flex;
+  flex-direction: column;
 }
 
 .settings-header {
@@ -39,9 +42,11 @@
 }
 
 .settings-content {
+  flex: 1;
   max-width: 800px;
   margin: 0 auto;
-  padding: 40px 24px;
+  padding: 40px 24px 80px 24px;
+  width: 100%;
 }
 
 .settings-section {

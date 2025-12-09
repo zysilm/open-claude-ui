@@ -138,7 +138,7 @@ AGENT_TEMPLATES = {
         environment_config={"packages": ["requests", "pandas", "numpy", "pytest"]},
         enabled_tools=["bash", "file_read", "file_write", "edit_lines", "search", "think"],
         llm_provider="openai",
-        llm_model="gpt-4o-mini",
+        llm_model="gpt-5-mini",
         llm_config={"temperature": 0.7, "max_tokens": 16384},
         system_instructions=_CORE_IDENTITY
         + _SECURITY_BOUNDARIES
@@ -185,7 +185,7 @@ AGENT_TEMPLATES = {
         environment_config={"packages": ["typescript", "eslint", "jest"]},
         enabled_tools=["bash", "file_read", "file_write", "edit_lines", "search", "think"],
         llm_provider="openai",
-        llm_model="gpt-4o-mini",
+        llm_model="gpt-5-mini",
         llm_config={"temperature": 0.7, "max_tokens": 16384},
         system_instructions=_CORE_IDENTITY
         + _SECURITY_BOUNDARIES
@@ -236,7 +236,7 @@ AGENT_TEMPLATES = {
         },
         enabled_tools=["bash", "file_read", "file_write", "edit_lines", "search", "think"],
         llm_provider="openai",
-        llm_model="gpt-4o-mini",
+        llm_model="gpt-5-mini",
         llm_config={"temperature": 0.5, "max_tokens": 16384},
         system_instructions=_CORE_IDENTITY
         + _SECURITY_BOUNDARIES
@@ -291,7 +291,7 @@ AGENT_TEMPLATES = {
         environment_config={"packages": ["requests", "beautifulsoup4", "selenium"]},
         enabled_tools=["bash", "file_read", "file_write", "search", "think"],
         llm_provider="openai",
-        llm_model="gpt-4o-mini",
+        llm_model="gpt-5-mini",
         llm_config={"temperature": 0.6, "max_tokens": 16384},
         system_instructions=_CORE_IDENTITY
         + _SECURITY_BOUNDARIES
@@ -334,7 +334,7 @@ AGENT_TEMPLATES = {
         environment_config={},
         enabled_tools=["bash", "file_read", "search"],  # Read-only for safety
         llm_provider="openai",
-        llm_model="gpt-4o-mini",
+        llm_model="gpt-5-mini",
         llm_config={"temperature": 0.3, "max_tokens": 16384},
         system_instructions=_CORE_IDENTITY
         + _SECURITY_BOUNDARIES
@@ -387,7 +387,7 @@ AGENT_TEMPLATES = {
         environment_config={"packages": ["pytest", "pytest-cov", "pytest-mock"]},
         enabled_tools=["bash", "file_read", "file_write", "edit_lines", "search", "think"],
         llm_provider="openai",
-        llm_model="gpt-4o-mini",
+        llm_model="gpt-5-mini",
         llm_config={"temperature": 0.5, "max_tokens": 16384},
         system_instructions=_CORE_IDENTITY
         + _SECURITY_BOUNDARIES
@@ -447,7 +447,7 @@ AGENT_TEMPLATES = {
         environment_config={},
         enabled_tools=["bash", "file_read", "search"],
         llm_provider="openai",
-        llm_model="gpt-4o-mini",
+        llm_model="gpt-5-mini",
         llm_config={"temperature": 0.7, "max_tokens": 16384},
         system_instructions=_CORE_IDENTITY
         + _SECURITY_BOUNDARIES
@@ -470,7 +470,7 @@ AGENT_TEMPLATES = {
         environment_config={},
         enabled_tools=["bash", "file_read", "file_write", "edit_lines", "search", "think"],
         llm_provider="openai",
-        llm_model="gpt-4o-mini",
+        llm_model="gpt-5-mini",
         llm_config={"temperature": 1.0, "max_tokens": 16384},
         system_instructions=_CORE_IDENTITY
         + _SECURITY_BOUNDARIES

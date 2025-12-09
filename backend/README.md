@@ -128,7 +128,7 @@ STORAGE_TYPE=local
 STORAGE_PATH=./data/storage
 
 # Agent defaults
-DEFAULT_LLM_MODEL=gpt-4o-mini
+DEFAULT_LLM_MODEL=gpt-5-mini
 AGENT_MAX_ITERATIONS=30
 ```
 

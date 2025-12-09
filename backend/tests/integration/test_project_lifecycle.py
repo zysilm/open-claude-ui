@@ -207,7 +207,7 @@ class TestProjectWithAgentConfig:
         config = config_response.json()
         # Default values from template
         assert config["llm_provider"] == "openai"
-        assert config["llm_model"] == "gpt-4o-mini"
+        assert config["llm_model"] == "gpt-5-mini"
 
     @pytest.mark.asyncio
     async def test_get_agent_config(self, client: AsyncClient):

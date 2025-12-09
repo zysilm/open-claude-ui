@@ -1,18 +1,25 @@
 """Settings API routes."""
 
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
 
 from app.core.storage.database import get_db
 from app.core.security.encryption import get_encryption_service
+from app.core.llm.providers import (
+    get_available_providers,
+    get_test_model_for_provider,
+)
 from app.models.database import ApiKey
 from app.models.schemas.settings import (
     ApiKeyCreate,
     ApiKeyTest,
     ApiKeyStatus,
     ApiKeyListResponse,
+    LLMModel,
+    LLMProviderInfo,
+    LLMProvidersResponse,
 )
 
 router = APIRouter(prefix="/settings", tags=["settings"])
@@ -120,18 +127,13 @@ async def test_api_key(
     Test an API key before saving it.
 
     Makes a lightweight API call to verify the key is valid.
+    Uses LiteLLM's model database to pick appropriate test models.
     """
     from app.core.llm.provider import LLMProvider
 
     try:
-        # Create a temporary LLM provider with the test key
-        # Use cheapest/fastest models for testing
-        model_map = {
-            "openai": "gpt-4o-mini",  # Cheapest for testing
-            "anthropic": "claude-haiku-4-5",  # Latest Haiku (fast)
-            "azure": "gpt-4o-mini",
-        }
-        model = model_map.get(test_data.provider, "gpt-4o-mini")
+        # Get appropriate test model from LiteLLM provider database
+        model = get_test_model_for_provider(test_data.provider)
 
         provider = LLMProvider(
             provider=test_data.provider,
@@ -158,3 +160,39 @@ async def test_api_key(
             "valid": False,
             "message": f"API key validation failed: {str(e)}",
         }
+
+
+@router.get("/llm-providers", response_model=LLMProvidersResponse)
+async def list_llm_providers(
+    featured_only: bool = Query(
+        True, description="Only return commonly-used providers (faster, less noise)"
+    ),
+):
+    """
+    Get available LLM providers and their models from LiteLLM.
+
+    This endpoint dynamically queries LiteLLM's model database to return
+    all supported providers and their available models. Use this to populate
+    provider/model selection dropdowns in the UI.
+
+    Args:
+        featured_only: If True (default), only returns popular providers like
+                      OpenAI, Anthropic, Azure, etc. Set to False to get all
+                      100+ providers supported by LiteLLM.
+
+    Returns:
+        List of providers with their available models
+    """
+    providers_data = get_available_providers(featured_only=featured_only)
+
+    providers = [
+        LLMProviderInfo(
+            id=p["id"],
+            name=p["name"],
+            models=[LLMModel(id=m["id"], name=m["name"]) for m in p["models"]],
+            env_key=p.get("env_key"),
+        )
+        for p in providers_data
+    ]
+
+    return LLMProvidersResponse(providers=providers)

@@ -23,7 +23,7 @@ class TestSandboxStartFlow:
                 "agent_config": {
                     "agent_type": "code_agent",
                     "llm_provider": "openai",
-                    "llm_model": "gpt-4o-mini",
+                    "llm_model": "gpt-5-mini",
                     "enabled_tools": ["bash"],
                 },
             },

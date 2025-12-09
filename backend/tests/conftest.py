@@ -112,7 +112,7 @@ async def sample_agent_config(
         system_instructions="You are a helpful coding assistant.",
         enabled_tools=["bash", "file_read", "file_write"],
         llm_provider="openai",
-        llm_model="gpt-4o-mini",
+        llm_model="gpt-5-mini",
         llm_config={"temperature": 0.7, "max_tokens": 4096},
     )
     db_session.add(config)

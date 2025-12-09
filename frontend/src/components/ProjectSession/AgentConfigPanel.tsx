@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { projectsAPI } from '@/services/api';
+import { projectsAPI, settingsAPI, LLMProviderInfo } from '@/services/api';
 import './AgentConfigPanel.css';
 
 interface AgentConfigPanelProps {
@@ -33,57 +33,6 @@ const AVAILABLE_TOOLS = [
   { id: 'think', name: 'Think', description: 'Chain-of-thought reasoning for complex tasks' },
 ];
 
-const LLM_PROVIDERS = [
-  {
-    id: 'openai',
-    name: 'OpenAI',
-    models: [
-      // GPT-5 Series (August 2025 - Latest)
-      'gpt-5-2025-08-07',              // GPT-5 flagship
-      'gpt-5-mini-2025-08-07',         // GPT-5 mini
-      // GPT-4.1 Series (April 2025)
-      'gpt-4.1-2025-04-14',            // GPT-4.1 flagship
-      'gpt-4.1-mini-2025-04-14',       // GPT-4.1 mini
-      'gpt-4.1-nano-2025-04-14',       // GPT-4.1 nano (smallest)
-      // Reasoning Models (o-series)
-      'o3-2025-04-16',                 // o3 reasoning
-      'o3-mini',                       // o3 mini reasoning
-      'o4-mini-2025-04-16',            // o4-mini reasoning
-      // GPT-4o Series (Still available)
-      'gpt-4o',                        // GPT-4o multimodal
-      'gpt-4o-mini',                   // GPT-4o mini
-      'gpt-4-turbo',                   // GPT-4 Turbo (legacy)
-    ]
-  },
-  {
-    id: 'anthropic',
-    name: 'Anthropic',
-    models: [
-      // Claude 4.5 Series (Latest - Nov 2025)
-      'claude-sonnet-4-5-20250929',    // Sonnet 4.5 (most capable)
-      'claude-haiku-4-5-20251001',     // Haiku 4.5 (fast)
-      // Claude 4.1 Series (Aug 2025)
-      'claude-opus-4-1-20250805',      // Opus 4.1 (agentic tasks)
-      // Aliases (auto-update to latest)
-      'claude-sonnet-4-5',             // Sonnet 4.5 alias
-      'claude-haiku-4-5',              // Haiku 4.5 alias
-      'claude-opus-4-1',               // Opus 4.1 alias
-    ]
-  },
-  {
-    id: 'azure',
-    name: 'Azure OpenAI',
-    models: [
-      'gpt-5-2025-08-07',
-      'gpt-4.1-2025-04-14',
-      'gpt-4o',
-      'gpt-4-turbo',
-      'gpt-4',
-      'gpt-35-turbo'
-    ]
-  },
-];
-
 export default function AgentConfigPanel({ projectId }: AgentConfigPanelProps) {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<'general' | 'tools' | 'instructions' | 'templates'>('general');
@@ -98,6 +47,15 @@ export default function AgentConfigPanel({ projectId }: AgentConfigPanelProps) {
     queryKey: ['agentConfig', projectId],
     queryFn: () => projectsAPI.getAgentConfig(projectId),
   });
+
+  // Fetch LLM providers from backend (dynamically from LiteLLM)
+  const { data: llmProvidersData, isLoading: isLoadingProviders } = useQuery({
+    queryKey: ['llmProviders'],
+    queryFn: () => settingsAPI.getLLMProviders(true), // featured_only=true
+    staleTime: 1000 * 60 * 60, // Cache for 1 hour (providers don't change often)
+  });
+
+  const llmProviders: LLMProviderInfo[] = llmProvidersData?.providers || [];
 
   // Fetch templates
   const { data: templates } = useQuery({
@@ -177,7 +135,7 @@ export default function AgentConfigPanel({ projectId }: AgentConfigPanelProps) {
   };
 
   const getSelectedProviderModels = () => {
-    const provider = LLM_PROVIDERS.find(p => p.id === formData.llm_provider);
+    const provider = llmProviders.find(p => p.id === formData.llm_provider);
     return provider?.models || [];
   };
 
@@ -241,17 +199,22 @@ export default function AgentConfigPanel({ projectId }: AgentConfigPanelProps) {
                 onChange={(e) => {
                   handleFieldChange('llm_provider', e.target.value);
                   // Reset model when provider changes
-                  const provider = LLM_PROVIDERS.find(p => p.id === e.target.value);
-                  if (provider) {
-                    handleFieldChange('llm_model', provider.models[0]);
+                  const provider = llmProviders.find(p => p.id === e.target.value);
+                  if (provider && provider.models.length > 0) {
+                    handleFieldChange('llm_model', provider.models[0].id);
                   }
                 }}
+                disabled={isLoadingProviders}
               >
-                {LLM_PROVIDERS.map(provider => (
-                  <option key={provider.id} value={provider.id}>
-                    {provider.name}
-                  </option>
-                ))}
+                {isLoadingProviders ? (
+                  <option>Loading providers...</option>
+                ) : (
+                  llmProviders.map(provider => (
+                    <option key={provider.id} value={provider.id}>
+                      {provider.name}
+                    </option>
+                  ))
+                )}
               </select>
             </div>
 
@@ -260,14 +223,19 @@ export default function AgentConfigPanel({ projectId }: AgentConfigPanelProps) {
               <label className="section-label">Model</label>
               <select
                 className="select-input"
-                value={formData.llm_model || 'gpt-4'}
+                value={formData.llm_model || ''}
                 onChange={(e) => handleFieldChange('llm_model', e.target.value)}
+                disabled={isLoadingProviders}
               >
-                {getSelectedProviderModels().map(model => (
-                  <option key={model} value={model}>
-                    {model}
-                  </option>
-                ))}
+                {isLoadingProviders ? (
+                  <option>Loading models...</option>
+                ) : (
+                  getSelectedProviderModels().map(model => (
+                    <option key={model.id} value={model.id}>
+                      {model.name}
+                    </option>
+                  ))
+                )}
               </select>
             </div>
 

@@ -1,14 +1,24 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { settingsAPI, type ApiKeyStatus } from '@/services/api';
+import { settingsAPI, type ApiKeyStatus, type LLMProviderInfo } from '@/services/api';
 import './SettingsPage.css';
 
-const PROVIDERS = [
-  { id: 'openai', name: 'OpenAI', placeholder: 'sk-...' },
-  { id: 'anthropic', name: 'Anthropic (Claude)', placeholder: 'sk-ant-...' },
-  { id: 'azure', name: 'Azure OpenAI', placeholder: 'your-azure-key' },
-];
+// Placeholder patterns for API key inputs
+const PROVIDER_PLACEHOLDERS: Record<string, string> = {
+  openai: 'sk-...',
+  anthropic: 'sk-ant-...',
+  azure: 'your-azure-key',
+  gemini: 'AIza...',
+  mistral: 'your-mistral-key',
+  groq: 'gsk_...',
+  together_ai: 'your-together-key',
+  cohere: 'your-cohere-key',
+  deepseek: 'sk-...',
+  ollama: 'not required for local',
+  openrouter: 'sk-or-...',
+  bedrock: 'AWS access key',
+};
 
 export default function SettingsPage() {
   const navigate = useNavigate();
@@ -20,10 +30,20 @@ export default function SettingsPage() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Fetch API keys
-  const { data: keysData, isLoading } = useQuery({
+  const { data: keysData, isLoading: isLoadingKeys } = useQuery({
     queryKey: ['apiKeys'],
     queryFn: () => settingsAPI.listApiKeys(),
   });
+
+  // Fetch LLM providers from backend (dynamically from LiteLLM)
+  const { data: providersData, isLoading: isLoadingProviders } = useQuery({
+    queryKey: ['llmProviders'],
+    queryFn: () => settingsAPI.getLLMProviders(true), // featured_only=true
+    staleTime: 1000 * 60 * 60, // Cache for 1 hour
+  });
+
+  const providers: LLMProviderInfo[] = providersData?.providers || [];
+  const isLoading = isLoadingKeys || isLoadingProviders;
 
   // Save API key mutation
   const saveMutation = useMutation({
@@ -94,6 +114,10 @@ export default function SettingsPage() {
     return getKeyStatus(providerId)?.is_configured || false;
   };
 
+  const getPlaceholder = (providerId: string) => {
+    return PROVIDER_PLACEHOLDERS[providerId] || 'your-api-key';
+  };
+
   return (
     <div className="settings-page">
       <div className="settings-header">
@@ -133,7 +157,10 @@ export default function SettingsPage() {
             </div>
           ) : (
             <div className="provider-list">
-              {PROVIDERS.map(provider => {
+              {providers.map(provider => {
+                // Skip providers that don't require an API key (like ollama)
+                if (provider.env_key === null) return null;
+
                 const status = getKeyStatus(provider.id);
                 const isEditing = editingProvider === provider.id;
                 const configured = isConfigured(provider.id);
@@ -145,7 +172,7 @@ export default function SettingsPage() {
                         <h3 className="provider-name">{provider.name}</h3>
                         <p className={`provider-status ${configured ? 'configured' : ''}`}>
                           {configured
-                            ? `✓ Configured (added ${new Date(status!.created_at).toLocaleDateString()})`
+                            ? `Configured (added ${new Date(status!.created_at).toLocaleDateString()})`
                             : 'Not configured'}
                         </p>
                       </div>
@@ -179,7 +206,7 @@ export default function SettingsPage() {
                           <input
                             type="password"
                             className="form-input"
-                            placeholder={provider.placeholder}
+                            placeholder={getPlaceholder(provider.id)}
                             value={apiKeyInputs[provider.id] || ''}
                             onChange={(e) =>
                               setApiKeyInputs(prev => ({ ...prev, [provider.id]: e.target.value }))

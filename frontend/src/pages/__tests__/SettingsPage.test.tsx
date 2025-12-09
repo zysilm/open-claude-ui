@@ -6,6 +6,30 @@ import { BrowserRouter } from 'react-router-dom';
 import SettingsPage from '../SettingsPage';
 import { settingsAPI } from '@/services/api';
 
+// Mock providers data (simulates what LiteLLM returns)
+const mockProvidersResponse = {
+  providers: [
+    {
+      id: 'openai',
+      name: 'OpenAI',
+      models: [{ id: 'gpt-4', name: 'GPT-4' }, { id: 'gpt-4o', name: 'GPT-4o' }],
+      env_key: 'OPENAI_API_KEY',
+    },
+    {
+      id: 'anthropic',
+      name: 'Anthropic',
+      models: [{ id: 'claude-3-5-sonnet-latest', name: 'Claude 3.5 Sonnet' }],
+      env_key: 'ANTHROPIC_API_KEY',
+    },
+    {
+      id: 'azure',
+      name: 'Azure OpenAI',
+      models: [{ id: 'gpt-4', name: 'GPT-4' }],
+      env_key: 'AZURE_API_KEY',
+    },
+  ],
+};
+
 // Mock the API
 vi.mock('@/services/api', () => ({
   settingsAPI: {
@@ -13,6 +37,7 @@ vi.mock('@/services/api', () => ({
     setApiKey: vi.fn(),
     deleteApiKey: vi.fn(),
     testApiKey: vi.fn(),
+    getLLMProviders: vi.fn(),
   },
 }));
 
@@ -40,6 +65,8 @@ describe('SettingsPage', () => {
         mutations: { retry: false },
       },
     });
+    // Default mock for getLLMProviders - most tests need this
+    vi.mocked(settingsAPI.getLLMProviders).mockResolvedValue(mockProvidersResponse);
   });
 
   const renderPage = () => {
@@ -96,7 +123,7 @@ describe('SettingsPage', () => {
 
     await waitFor(() => {
       expect(screen.getByText('OpenAI')).toBeInTheDocument();
-      expect(screen.getByText('Anthropic (Claude)')).toBeInTheDocument();
+      expect(screen.getByText('Anthropic')).toBeInTheDocument();
       expect(screen.getByText('Azure OpenAI')).toBeInTheDocument();
     });
   });
@@ -116,7 +143,7 @@ describe('SettingsPage', () => {
     renderPage();
 
     await waitFor(() => {
-      expect(screen.getByText(/✓ Configured/)).toBeInTheDocument();
+      expect(screen.getByText(/Configured \(added/)).toBeInTheDocument();
     });
   });
 

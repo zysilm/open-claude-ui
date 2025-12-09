@@ -22,7 +22,7 @@ class TestSettings:
             assert settings.docker_container_pool_size == 5
             assert settings.storage_mode == "volume"
             assert settings.default_llm_provider == "openai"
-            assert settings.default_llm_model == "gpt-4o-mini"
+            assert settings.default_llm_model == "gpt-5-mini"
 
     def test_cors_origins_list(self):
         """Test CORS origins parsing."""

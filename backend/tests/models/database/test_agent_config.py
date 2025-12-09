@@ -19,7 +19,7 @@ class TestAgentConfigurationModel:
             system_instructions="You are a helpful assistant.",
             enabled_tools=["bash", "file_read", "file_write"],
             llm_provider="openai",
-            llm_model="gpt-4o-mini",
+            llm_model="gpt-5-mini",
             llm_config={"temperature": 0.7, "max_tokens": 4096},
         )
         db_session.add(config)
@@ -31,7 +31,7 @@ class TestAgentConfigurationModel:
         assert config.project_id == sample_project.id
         assert config.agent_type == "code_agent"
         assert config.llm_provider == "openai"
-        assert config.llm_model == "gpt-4o-mini"
+        assert config.llm_model == "gpt-5-mini"
 
     @pytest.mark.asyncio
     async def test_agent_config_defaults(self, db_session, sample_project):
