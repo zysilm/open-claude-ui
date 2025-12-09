@@ -17,6 +17,9 @@ from app.models.schemas import (
     ChatSessionResponse,
     ChatSessionListResponse,
 )
+from app.core.sandbox import get_container_manager
+from app.core.storage.project_volume_storage import get_project_volume_storage
+from app.core.storage.file_manager import get_file_manager
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -141,7 +144,14 @@ async def delete_project(
     project_id: str,
     db: AsyncSession = Depends(get_db),
 ):
-    """Delete a project."""
+    """Delete a project and clean up all associated resources.
+
+    This includes:
+    - Destroying containers for all chat sessions
+    - Deleting the project's Docker volume
+    - Deleting local project files
+    - Deleting database records (cascades to sessions, configs, etc.)
+    """
     query = select(Project).where(Project.id == project_id)
     result = await db.execute(query)
     project = result.scalar_one_or_none()
@@ -152,6 +162,34 @@ async def delete_project(
             detail=f"Project with id {project_id} not found",
         )
 
+    # Get all chat sessions for this project to clean up containers
+    sessions_query = select(ChatSession).where(ChatSession.project_id == project_id)
+    sessions_result = await db.execute(sessions_query)
+    sessions = sessions_result.scalars().all()
+
+    # Clean up containers for all sessions (best-effort, don't fail on errors)
+    container_manager = get_container_manager()
+    for session in sessions:
+        try:
+            await container_manager.destroy_container(session.id)
+        except Exception as e:
+            print(f"Warning: Failed to cleanup container for session {session.id}: {e}")
+
+    # Clean up project Docker volume (best-effort)
+    try:
+        project_volume_storage = get_project_volume_storage()
+        await project_volume_storage.delete_volume(project_id)
+    except Exception as e:
+        print(f"Warning: Failed to cleanup Docker volume for project {project_id}: {e}")
+
+    # Clean up local project files (best-effort)
+    try:
+        file_manager = get_file_manager()
+        file_manager.delete_project_directory(project_id)
+    except Exception as e:
+        print(f"Warning: Failed to cleanup local files for project {project_id}: {e}")
+
+    # Delete database records (cascades to sessions, agent config, etc.)
     await db.delete(project)
     await db.commit()
 

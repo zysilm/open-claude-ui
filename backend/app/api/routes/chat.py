@@ -162,7 +162,7 @@ async def delete_chat_session(
     session_id: str,
     db: AsyncSession = Depends(get_db),
 ):
-    """Delete a chat session."""
+    """Delete a chat session and clean up associated container."""
     query = select(ChatSession).where(ChatSession.id == session_id)
     result = await db.execute(query)
     session = result.scalar_one_or_none()
@@ -172,6 +172,14 @@ async def delete_chat_session(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Chat session with id {session_id} not found",
         )
+
+    # Clean up container for this session (ignore errors - container may not exist)
+    try:
+        container_manager = get_container_manager()
+        await container_manager.destroy_container(session_id)
+    except Exception as e:
+        # Log but don't fail - container cleanup is best-effort
+        print(f"Warning: Failed to cleanup container for session {session_id}: {e}")
 
     await db.delete(session)
     await db.commit()

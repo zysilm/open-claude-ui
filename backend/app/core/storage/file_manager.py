@@ -2,6 +2,7 @@
 
 import os
 import hashlib
+import shutil
 from pathlib import Path
 from typing import List, BinaryIO
 from datetime import datetime
@@ -139,6 +140,28 @@ class FileManager:
                 )
 
         return files
+
+    def delete_project_directory(self, project_id: str) -> bool:
+        """
+        Delete entire project directory and all its files.
+
+        Call this when a project is deleted to clean up local files.
+
+        Args:
+            project_id: Project ID
+
+        Returns:
+            Success boolean
+        """
+        project_path = self.base_path / project_id
+        try:
+            if project_path.exists() and project_path.is_dir():
+                shutil.rmtree(project_path)
+                return True
+            return True  # Already deleted or doesn't exist
+        except Exception as e:
+            print(f"Error deleting project directory {project_id}: {e}")
+            return False
 
     def _sanitize_filename(self, filename: str) -> str:
         """Sanitize filename to prevent directory traversal."""
