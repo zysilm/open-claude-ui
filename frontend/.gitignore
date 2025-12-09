@@ -26,3 +26,13 @@ dist-electron
 # Build
 build/
 out/
+
+# Coverage reports
+coverage/
+
+# Test temp files
+tests/temp/
+
+# Playwright test results
+test-results/
+playwright-report/
