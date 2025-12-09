@@ -4,6 +4,7 @@ import io
 import zipfile
 import base64
 import mimetypes
+from datetime import datetime
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse, Response
@@ -13,6 +14,7 @@ from pydantic import BaseModel
 
 from app.core.storage.database import get_db
 from app.models.database import ChatSession, Project, ContentBlock, File
+from app.models.database.file import FileType
 from app.core.storage.file_manager import get_file_manager
 from app.models.schemas import (
     ChatSessionCreate,
@@ -32,6 +34,7 @@ router = APIRouter(prefix="/chats", tags=["chat"])
 # Workspace file models
 class WorkspaceFile(BaseModel):
     """Model for a file in the workspace."""
+    id: Optional[str] = None  # File ID (only for uploaded files from database)
     name: str
     path: str
     size: int
@@ -342,6 +345,7 @@ async def list_workspace_files(session_id: str, db: AsyncSession = Depends(get_d
 
     uploaded = [
         WorkspaceFile(
+            id=f.id,  # Include file ID for delete operations
             name=f.filename,
             path=f"/workspace/project_files/{f.filename}",  # Virtual path for display
             size=f.size,
@@ -597,3 +601,132 @@ async def download_all_workspace_files(session_id: str, type: str = "output", db
             "Content-Disposition": f'attachment; filename="{type}_files.zip"',
         },
     )
+
+
+# Request model for upload to project
+class UploadToProjectRequest(BaseModel):
+    """Request model for uploading workspace file to project."""
+    path: str
+    project_id: str
+
+
+@router.post("/{session_id}/workspace/files/upload-to-project")
+async def upload_workspace_file_to_project(
+    session_id: str,
+    request: UploadToProjectRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Upload a workspace output file to the project files.
+    This makes the file available to all chat sessions in the project.
+    """
+    path = request.path
+    project_id = request.project_id
+
+    # Validate path is an output file
+    if not path.startswith("/workspace/out/"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only output files can be uploaded to project",
+        )
+
+    # Verify session exists and belongs to project
+    session_query = select(ChatSession).where(ChatSession.id == session_id)
+    session_result = await db.execute(session_query)
+    session = session_result.scalar_one_or_none()
+
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Session {session_id} not found",
+        )
+
+    if session.project_id != project_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Session does not belong to this project",
+        )
+
+    # Read file content from workspace
+    try:
+        content = await _read_file_content(session_id, path, db)
+    except HTTPException:
+        raise
+
+    # Get filename
+    filename = path.split('/')[-1]
+    mime_type, _ = mimetypes.guess_type(filename)
+    mime_type = mime_type or 'application/octet-stream'
+
+    # Handle binary files (data URIs)
+    if content.startswith('data:'):
+        try:
+            header, b64_data = content.split(',', 1)
+            file_bytes = base64.b64decode(b64_data)
+        except Exception:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to decode file content",
+            )
+    else:
+        file_bytes = content.encode('utf-8')
+
+    # Check if file already exists in project
+    existing_query = select(File).where(
+        File.project_id == project_id,
+        File.filename == filename
+    )
+    existing_result = await db.execute(existing_query)
+    existing_file = existing_result.scalar_one_or_none()
+
+    # Save file using file manager
+    file_manager = get_file_manager()
+    # Wrap bytes in BytesIO stream as file_manager expects a stream with read() method
+    file_stream = io.BytesIO(file_bytes)
+
+    if existing_file:
+        # Overwrite existing file - delete old file first
+        old_file_path = file_manager.get_file_path(existing_file.file_path)
+        if old_file_path and old_file_path.exists():
+            old_file_path.unlink()
+
+        # Save new file content (use same path structure)
+        saved_path, file_size, file_hash = file_manager.save_file(project_id, filename, file_stream)
+
+        # Update existing record
+        existing_file.file_path = saved_path
+        existing_file.size = file_size
+        existing_file.hash = file_hash
+        existing_file.mime_type = mime_type
+        existing_file.uploaded_at = datetime.utcnow()
+
+        await db.commit()
+        await db.refresh(existing_file)
+        file_record = existing_file
+        was_overwritten = True
+    else:
+        saved_path, file_size, file_hash = file_manager.save_file(project_id, filename, file_stream)
+
+        # Create file record in database
+        # Mark as INPUT since it's now a project file available for other sessions
+        file_record = File(
+            project_id=project_id,
+            filename=filename,
+            file_path=saved_path,
+            file_type=FileType.INPUT,
+            mime_type=mime_type,
+            size=file_size,
+            hash=file_hash,
+        )
+        db.add(file_record)
+        await db.commit()
+        await db.refresh(file_record)
+        was_overwritten = False
+
+    return {
+        "success": True,
+        "file_id": file_record.id,
+        "filename": filename,
+        "overwritten": was_overwritten,
+        "message": f"File '{filename}' {'updated' if was_overwritten else 'uploaded'} in project successfully",
+    }

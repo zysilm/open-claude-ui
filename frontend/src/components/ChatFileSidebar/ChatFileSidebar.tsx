@@ -27,6 +27,7 @@ import {
   X,
   Upload,
   Check,
+  Trash2,
 } from 'lucide-react';
 import './ChatFileSidebar.css';
 
@@ -147,7 +148,7 @@ export default function ChatFileSidebar({
     retry: 1,
   });
 
-  // Upload mutation
+  // Upload mutation (for drag-drop file upload)
   const uploadMutation = useMutation({
     mutationFn: (file: File) => filesAPI.upload(projectId, file),
     onSuccess: () => {
@@ -160,6 +161,51 @@ export default function ChatFileSidebar({
   const handleUpload = useCallback(async (file: File) => {
     await uploadMutation.mutateAsync(file);
   }, [uploadMutation]);
+
+  // Upload to project mutation (for output files)
+  const [uploadedToProject, setUploadedToProject] = useState<Set<string>>(new Set());
+  const uploadToProjectMutation = useMutation({
+    mutationFn: (path: string) => workspaceAPI.uploadToProject(sessionId, path, projectId),
+    onSuccess: (_data, path) => {
+      // Mark file as uploaded
+      setUploadedToProject(prev => new Set(prev).add(path));
+      // Invalidate project files so other sessions can see the file
+      queryClient.invalidateQueries({ queryKey: ['files', projectId] });
+      // Invalidate workspace files to refresh the "Uploaded Files" section
+      queryClient.invalidateQueries({ queryKey: ['workspaceFiles', sessionId] });
+    },
+  });
+
+  const handleUploadToProject = useCallback(async (file: WorkspaceFile, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    if (uploadedToProject.has(file.path)) return; // Already uploaded
+    try {
+      await uploadToProjectMutation.mutateAsync(file.path);
+    } catch (err) {
+      console.error('Upload to project failed:', err);
+    }
+  }, [uploadToProjectMutation, uploadedToProject]);
+
+  // Delete file mutation (for uploaded files)
+  const deleteFileMutation = useMutation({
+    mutationFn: (fileId: string) => filesAPI.delete(fileId),
+    onSuccess: () => {
+      // Invalidate queries to refresh file lists
+      queryClient.invalidateQueries({ queryKey: ['files', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['workspaceFiles', sessionId] });
+    },
+  });
+
+  const handleDeleteFile = useCallback(async (file: WorkspaceFile, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    if (!file.id) return; // Can only delete files with IDs (uploaded files)
+    if (!confirm(`Delete "${file.name}"? This will remove it from the project.`)) return;
+    try {
+      await deleteFileMutation.mutateAsync(file.id);
+    } catch (err) {
+      console.error('Delete file failed:', err);
+    }
+  }, [deleteFileMutation]);
 
   // Fetch selected file content
   const {
@@ -375,6 +421,16 @@ export default function ChatFileSidebar({
                             >
                               <Download size={14} />
                             </button>
+                            {file.id && (
+                              <button
+                                className="file-delete-btn"
+                                onClick={(e) => handleDeleteFile(file, e)}
+                                title="Delete from project"
+                                disabled={deleteFileMutation.isPending}
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            )}
                           </div>
                         ))
                       )}
@@ -410,26 +466,39 @@ export default function ChatFileSidebar({
                       {outputFiles.length === 0 ? (
                         <div className="file-list-empty">No output files yet</div>
                       ) : (
-                        outputFiles.map((file) => (
-                          <div
-                            key={file.path}
-                            className="file-item"
-                            onClick={() => handleFileClick(file)}
-                          >
-                            <div className="file-icon">{getFileIcon(file)}</div>
-                            <div className="file-info">
-                              <div className="file-name">{file.name}</div>
-                              <div className="file-size">{formatFileSize(file.size)}</div>
-                            </div>
-                            <button
-                              className="file-download-btn"
-                              onClick={(e) => handleDownloadFile(file, e)}
-                              title="Download"
+                        outputFiles.map((file) => {
+                          const isUploaded = uploadedToProject.has(file.path);
+                          const isUploading = uploadToProjectMutation.isPending &&
+                            uploadToProjectMutation.variables === file.path;
+                          return (
+                            <div
+                              key={file.path}
+                              className="file-item"
+                              onClick={() => handleFileClick(file)}
                             >
-                              <Download size={14} />
-                            </button>
-                          </div>
-                        ))
+                              <div className="file-icon">{getFileIcon(file)}</div>
+                              <div className="file-info">
+                                <div className="file-name">{file.name}</div>
+                                <div className="file-size">{formatFileSize(file.size)}</div>
+                              </div>
+                              <button
+                                className={`file-upload-btn ${isUploaded ? 'uploaded' : ''}`}
+                                onClick={(e) => handleUploadToProject(file, e)}
+                                title={isUploaded ? 'Added to project' : 'Add to project files'}
+                                disabled={isUploaded || isUploading}
+                              >
+                                {isUploaded ? <Check size={14} /> : <Upload size={14} />}
+                              </button>
+                              <button
+                                className="file-download-btn"
+                                onClick={(e) => handleDownloadFile(file, e)}
+                                title="Download"
+                              >
+                                <Download size={14} />
+                              </button>
+                            </div>
+                          );
+                        })
                       )}
                     </div>
                   )}

@@ -156,6 +156,7 @@ export const filesAPI = {
 
 // Workspace Files API (for chat session file sidebar)
 export interface WorkspaceFile {
+  id?: string;  // File ID (only for uploaded files from database)
   name: string;
   path: string;
   size: number;

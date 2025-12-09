@@ -283,7 +283,9 @@
   margin-top: 2px;
 }
 
-.file-download-btn {
+.file-download-btn,
+.file-upload-btn,
+.file-delete-btn {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -296,15 +298,40 @@
   cursor: pointer;
   opacity: 0;
   transition: all 0.15s;
+  flex-shrink: 0;
 }
 
-.file-item:hover .file-download-btn {
+.file-item:hover .file-download-btn,
+.file-item:hover .file-upload-btn,
+.file-item:hover .file-delete-btn {
   opacity: 1;
 }
 
 .file-download-btn:hover {
   background: #e5e7eb;
   color: #374151;
+}
+
+.file-upload-btn:hover {
+  background: #dbeafe;
+  color: #2563eb;
+}
+
+.file-delete-btn:hover {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.file-upload-btn.uploaded {
+  opacity: 1;
+  color: #16a34a;
+  cursor: default;
+}
+
+.file-upload-btn:disabled,
+.file-delete-btn:disabled {
+  cursor: default;
+  opacity: 0.5;
 }
 
 /* File Viewer */

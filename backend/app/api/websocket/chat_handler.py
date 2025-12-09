@@ -704,6 +704,7 @@ class ChatWebSocketHandler:
                 # Container not running, recreate it
                 container = await container_manager.create_container(
                     session_id,
+                    session.project_id,
                     session.environment_type,
                     session.environment_config or {}
                 )
