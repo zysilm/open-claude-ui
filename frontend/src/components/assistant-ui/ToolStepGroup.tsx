@@ -365,24 +365,35 @@ export const ToolStepGroup: React.FC<ToolStepGroupProps> = ({
   }
 
   // Find the index of the currently running step (if any)
-  // If we have streaming tools, consider them as running
-  const runningStepIndex = hasStreamingTools
-    ? steps.length  // All persisted steps should collapse
-    : steps.findIndex(s => s.isRunning);
+  const runningStepIndex = steps.findIndex(s => s.isRunning);
 
   // Group into steps
   return (
     <div className="tool-steps">
-      {steps.map((step, index) => (
-        <StepComponent
-          key={step.id}
-          step={step}
-          // Expand last step by default if streaming (and no streaming tools)
-          defaultExpanded={isStreaming && !hasStreamingTools && index === steps.length - 1}
-          // Collapse previous steps when a new step is running or streaming tools exist
-          forceCollapsed={runningStepIndex >= 0 && index < runningStepIndex}
-        />
-      ))}
+      {steps.map((step, index) => {
+        // Determine if this step should be collapsed:
+        // - If there's a running step, collapse all steps BEFORE it (completed ones)
+        // - If streaming tools exist, the last persisted step should stay expanded
+        //   to show its result, only collapse earlier completed steps
+        const hasRunningStep = runningStepIndex >= 0;
+        const shouldCollapse = hasRunningStep
+          ? index < runningStepIndex  // Collapse steps before the running one
+          : hasStreamingTools && step.isComplete && index < steps.length - 1;  // Keep last visible during streaming
+
+        return (
+          <StepComponent
+            key={step.id}
+            step={step}
+            // Expand if: it's running, OR it's the last step during streaming, OR explicitly defaultExpanded
+            defaultExpanded={
+              step.isRunning ||
+              (isStreaming && index === steps.length - 1) ||
+              (hasStreamingTools && index === steps.length - 1)
+            }
+            forceCollapsed={shouldCollapse}
+          />
+        );
+      })}
       {/* Render streaming tools that aren't persisted yet */}
       {streamingTools.length > 0 && (
         <div style={{
