@@ -158,7 +158,7 @@ class UnifiedSearchTool(Tool):
         # Check if it looks like a filename pattern
         if "*" in query or query.startswith(".") or "/" not in query and "." in query:
             # Patterns like *.py, *.js, config.json, .gitignore
-            if re.match(r'^[\w\-.*?]+\.\w+$', query) or query.startswith("*"):
+            if re.match(r"^[\w\-.*?]+\.\w+$", query) or query.startswith("*"):
                 return "filename"
 
         # Default to text search
@@ -190,7 +190,7 @@ class UnifiedSearchTool(Tool):
         path: str = "/workspace/out",
         file_pattern: Optional[str] = None,
         max_results: int = 50,
-        **kwargs
+        **kwargs,
     ) -> ToolResult:
         """Execute search using the appropriate method."""
         try:
@@ -201,9 +201,7 @@ class UnifiedSearchTool(Tool):
 
             # Validate path exists
             exit_code, _, _ = await self._container.execute(
-                f"test -e {search_path} && echo 'exists'",
-                workdir="/workspace",
-                timeout=5
+                f"test -e {search_path} && echo 'exists'", workdir="/workspace", timeout=5
             )
             if exit_code != 0:
                 return ToolResult(
@@ -232,11 +230,7 @@ class UnifiedSearchTool(Tool):
             )
 
     async def _search_code(
-        self,
-        query: str,
-        language: Optional[str],
-        search_path: Path,
-        max_results: int
+        self, query: str, language: Optional[str], search_path: Path, max_results: int
     ) -> ToolResult:
         """AST-aware code structure search."""
         # Check if language is provided for shortcut queries
@@ -256,9 +250,7 @@ class UnifiedSearchTool(Tool):
 
         # Check if ast-grep is available
         exit_code, _, _ = await self._container.execute(
-            "which ast-grep",
-            workdir="/workspace",
-            timeout=5
+            "which ast-grep", workdir="/workspace", timeout=5
         )
         if exit_code != 0:
             # Fallback to text search
@@ -307,11 +299,7 @@ class UnifiedSearchTool(Tool):
         )
 
     async def _search_text(
-        self,
-        query: str,
-        search_path: Path,
-        file_pattern: Optional[str],
-        max_results: int
+        self, query: str, search_path: Path, file_pattern: Optional[str], max_results: int
     ) -> ToolResult:
         """Text/grep-based content search."""
         safe_query = query.replace("'", "'\\''")
@@ -355,12 +343,7 @@ class UnifiedSearchTool(Tool):
             metadata={"query": query, "mode": "text", "matches": len(files)},
         )
 
-    async def _search_filename(
-        self,
-        query: str,
-        search_path: Path,
-        max_results: int
-    ) -> ToolResult:
+    async def _search_filename(self, query: str, search_path: Path, max_results: int) -> ToolResult:
         """Find files by name pattern."""
         safe_query = query.replace("'", "'\\''")
 
@@ -416,11 +399,13 @@ class UnifiedSearchTool(Tool):
             for result in results:
                 if len(matches) >= max_results:
                     break
-                matches.append({
-                    "file": result.get("file", ""),
-                    "line": result.get("range", {}).get("start", {}).get("line", 0),
-                    "match": result.get("text", ""),
-                })
+                matches.append(
+                    {
+                        "file": result.get("file", ""),
+                        "line": result.get("range", {}).get("start", {}).get("line", 0),
+                        "match": result.get("text", ""),
+                    }
+                )
         except json.JSONDecodeError:
             # Fallback: try parsing as NDJSON (newline-delimited)
             for line in stdout.strip().split("\n"):
@@ -428,11 +413,13 @@ class UnifiedSearchTool(Tool):
                     continue
                 try:
                     result = json.loads(line)
-                    matches.append({
-                        "file": result.get("file", ""),
-                        "line": result.get("range", {}).get("start", {}).get("line", 0),
-                        "match": result.get("text", ""),
-                    })
+                    matches.append(
+                        {
+                            "file": result.get("file", ""),
+                            "line": result.get("range", {}).get("start", {}).get("line", 0),
+                            "match": result.get("text", ""),
+                        }
+                    )
                     if len(matches) >= max_results:
                         break
                 except json.JSONDecodeError:
@@ -443,16 +430,14 @@ class UnifiedSearchTool(Tool):
         return matches
 
     def _format_code_results(
-        self,
-        matches: List[Dict[str, Any]],
-        query: str,
-        resolved_pattern: str,
-        max_results: int
+        self, matches: List[Dict[str, Any]], query: str, resolved_pattern: str, max_results: int
     ) -> str:
         """Format AST search results."""
         is_shortcut = query.lower() in PATTERN_SHORTCUTS
         if is_shortcut:
-            output = f"Found {len(matches)} match(es) for '{query}' (pattern: {resolved_pattern}):\n\n"
+            output = (
+                f"Found {len(matches)} match(es) for '{query}' (pattern: {resolved_pattern}):\n\n"
+            )
         else:
             output = f"Found {len(matches)} match(es) for pattern '{resolved_pattern}':\n\n"
 

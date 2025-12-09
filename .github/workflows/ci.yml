@@ -1,0 +1,435 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop, feature/*]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  PYTHON_VERSION: "3.13"
+  NODE_VERSION: "20"
+  # Test environment variables
+  MASTER_ENCRYPTION_KEY: "test_key_for_ci_testing_32bytes!"
+  DATABASE_URL: "sqlite+aiosqlite:///:memory:"
+  CORS_ORIGINS: "http://localhost:3000,http://localhost:5173"
+
+jobs:
+  # ============================================
+  # Backend Jobs
+  # ============================================
+  backend-build:
+    name: Backend Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: latest
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: Cache Poetry dependencies
+        uses: actions/cache@v4
+        with:
+          path: backend/.venv
+          key: venv-${{ runner.os }}-py${{ env.PYTHON_VERSION }}-${{ hashFiles('backend/poetry.lock') }}
+          restore-keys: |
+            venv-${{ runner.os }}-py${{ env.PYTHON_VERSION }}-
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      - name: Check code formatting (Black)
+        run: poetry run black --check .
+
+      - name: Lint with Ruff
+        run: poetry run ruff check .
+
+  backend-unit-tests:
+    name: Backend Unit Tests
+    runs-on: ubuntu-latest
+    needs: backend-build
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: latest
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: Cache Poetry dependencies
+        uses: actions/cache@v4
+        with:
+          path: backend/.venv
+          key: venv-${{ runner.os }}-py${{ env.PYTHON_VERSION }}-${{ hashFiles('backend/poetry.lock') }}
+          restore-keys: |
+            venv-${{ runner.os }}-py${{ env.PYTHON_VERSION }}-
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      - name: Run unit tests with coverage
+        run: |
+          poetry run pytest tests/ \
+            --ignore=tests/integration \
+            --cov=app \
+            --cov-report=xml:coverage-unit.xml \
+            --cov-report=html:coverage-unit-html \
+            --cov-report=term-missing \
+            -v
+
+      - name: Upload unit test coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-unit-coverage
+          path: |
+            backend/coverage-unit.xml
+            backend/coverage-unit-html/
+
+  backend-integration-tests:
+    name: Backend Integration Tests
+    runs-on: ubuntu-latest
+    needs: backend-build
+    defaults:
+      run:
+        working-directory: backend
+
+    services:
+      # Docker-in-Docker is not easily available in GitHub Actions
+      # Integration tests that require Docker will be skipped in CI
+      # or we can use the docker service
+      docker:
+        image: docker:dind
+        options: --privileged
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: latest
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: Cache Poetry dependencies
+        uses: actions/cache@v4
+        with:
+          path: backend/.venv
+          key: venv-${{ runner.os }}-py${{ env.PYTHON_VERSION }}-${{ hashFiles('backend/poetry.lock') }}
+          restore-keys: |
+            venv-${{ runner.os }}-py${{ env.PYTHON_VERSION }}-
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      - name: Run integration tests with coverage
+        run: |
+          poetry run pytest tests/integration \
+            --cov=app \
+            --cov-report=xml:coverage-integration.xml \
+            --cov-report=html:coverage-integration-html \
+            --cov-report=term-missing \
+            -v
+        continue-on-error: true  # Some tests may require Docker
+
+      - name: Upload integration test coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-integration-coverage
+          path: |
+            backend/coverage-integration.xml
+            backend/coverage-integration-html/
+        if: always()
+
+  # ============================================
+  # Frontend Jobs
+  # ============================================
+  frontend-build:
+    name: Frontend Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Build
+        run: npm run build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build
+          path: frontend/dist/
+
+  frontend-unit-tests:
+    name: Frontend Unit Tests
+    runs-on: ubuntu-latest
+    needs: frontend-build
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests with coverage
+        run: npm run test:unit:coverage
+
+      - name: Upload unit test coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-unit-coverage
+          path: frontend/coverage/
+
+  frontend-e2e-tests:
+    name: Frontend E2E Tests
+    runs-on: ubuntu-latest
+    needs: [frontend-build, backend-build]
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Set up Python (for backend)
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: latest
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: poetry install --no-interaction
+
+      - name: Start backend server
+        working-directory: backend
+        run: |
+          poetry run uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+          sleep 5
+        env:
+          MASTER_ENCRYPTION_KEY: ${{ env.MASTER_ENCRYPTION_KEY }}
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+
+      - name: Run E2E tests
+        run: npm run test:e2e
+        continue-on-error: true  # E2E tests may fail without full environment
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/
+        if: always()
+
+      - name: Upload Playwright test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-test-results
+          path: frontend/test-results/
+        if: always()
+
+  # ============================================
+  # Coverage Report
+  # ============================================
+  coverage-report:
+    name: Generate Coverage Report
+    runs-on: ubuntu-latest
+    needs: [backend-unit-tests, backend-integration-tests, frontend-unit-tests]
+    if: always()
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download backend unit coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-unit-coverage
+          path: coverage/backend-unit
+        continue-on-error: true
+
+      - name: Download backend integration coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-integration-coverage
+          path: coverage/backend-integration
+        continue-on-error: true
+
+      - name: Download frontend unit coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-unit-coverage
+          path: coverage/frontend-unit
+        continue-on-error: true
+
+      - name: Generate coverage summary
+        run: |
+          echo "# Coverage Summary" > coverage-summary.md
+          echo "" >> coverage-summary.md
+          echo "## Backend Unit Tests" >> coverage-summary.md
+          if [ -f coverage/backend-unit/coverage-unit.xml ]; then
+            echo "Coverage report available in artifacts" >> coverage-summary.md
+          else
+            echo "No coverage data available" >> coverage-summary.md
+          fi
+          echo "" >> coverage-summary.md
+          echo "## Backend Integration Tests" >> coverage-summary.md
+          if [ -f coverage/backend-integration/coverage-integration.xml ]; then
+            echo "Coverage report available in artifacts" >> coverage-summary.md
+          else
+            echo "No coverage data available" >> coverage-summary.md
+          fi
+          echo "" >> coverage-summary.md
+          echo "## Frontend Unit Tests" >> coverage-summary.md
+          if [ -d coverage/frontend-unit ]; then
+            echo "Coverage report available in artifacts" >> coverage-summary.md
+          else
+            echo "No coverage data available" >> coverage-summary.md
+          fi
+
+      - name: Upload combined coverage summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-summary
+          path: |
+            coverage-summary.md
+            coverage/
+
+      - name: Post coverage summary to PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let summary = '## Test Coverage Summary\n\n';
+            summary += '| Component | Status |\n';
+            summary += '|-----------|--------|\n';
+
+            // Check for coverage files
+            const backendUnit = fs.existsSync('coverage/backend-unit/coverage-unit.xml');
+            const backendIntegration = fs.existsSync('coverage/backend-integration/coverage-integration.xml');
+            const frontendUnit = fs.existsSync('coverage/frontend-unit');
+
+            summary += `| Backend Unit Tests | ${backendUnit ? '✅ Available' : '❌ Missing'} |\n`;
+            summary += `| Backend Integration Tests | ${backendIntegration ? '✅ Available' : '⚠️ Skipped'} |\n`;
+            summary += `| Frontend Unit Tests | ${frontendUnit ? '✅ Available' : '❌ Missing'} |\n`;
+
+            summary += '\n📦 Download full coverage reports from the workflow artifacts.';
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: summary
+            });
+        continue-on-error: true
+
+  # ============================================
+  # Final Status Check
+  # ============================================
+  ci-success:
+    name: CI Success
+    runs-on: ubuntu-latest
+    needs: [backend-build, backend-unit-tests, frontend-build, frontend-unit-tests]
+    if: always()
+
+    steps:
+      - name: Check all jobs passed
+        run: |
+          if [ "${{ needs.backend-build.result }}" != "success" ]; then
+            echo "Backend build failed"
+            exit 1
+          fi
+          if [ "${{ needs.backend-unit-tests.result }}" != "success" ]; then
+            echo "Backend unit tests failed"
+            exit 1
+          fi
+          if [ "${{ needs.frontend-build.result }}" != "success" ]; then
+            echo "Frontend build failed"
+            exit 1
+          fi
+          if [ "${{ needs.frontend-unit-tests.result }}" != "success" ]; then
+            echo "Frontend unit tests failed"
+            exit 1
+          fi
+          echo "All required checks passed!"

@@ -4,7 +4,6 @@ from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File 
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from typing import List
 
 from app.core.storage.database import get_db
 from app.models.database import File, FileType, Project
@@ -98,6 +97,7 @@ async def list_project_files(
     files = result.scalars().all()
 
     from sqlalchemy import func
+
     count_query = select(func.count()).select_from(File).where(File.project_id == project_id)
     total_result = await db.execute(count_query)
     total = total_result.scalar_one()

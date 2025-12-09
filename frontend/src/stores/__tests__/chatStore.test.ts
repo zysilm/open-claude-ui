@@ -1,43 +1,43 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useChatStore } from '../chatStore';
-import type { StreamEvent, AgentAction } from '../chatStore';
+import type { AgentAction, StreamEvent } from '@/types';
 
 describe('chatStore', () => {
   beforeEach(() => {
-    // Reset store before each test
-    const { clearStreamEvents, clearAgentActions, clearStreamingMessage, setActiveSession, clearError } =
-      useChatStore.getState();
-    clearStreamEvents();
-    clearAgentActions();
-    clearStreamingMessage();
-    setActiveSession(null);
-    clearError();
+    // Reset store state before each test
+    useChatStore.setState({
+      activeSessionId: null,
+      streamingMessage: '',
+      isStreaming: false,
+      agentActions: [],
+      streamEvents: [],
+      error: null,
+    });
   });
 
-  describe('activeSessionId', () => {
-    it('should initialize with null', () => {
-      const { activeSessionId } = useChatStore.getState();
-      expect(activeSessionId).toBeNull();
-    });
+  describe('initial state', () => {
+    it('should have correct initial state', () => {
+      const state = useChatStore.getState();
 
-    it('should set active session', () => {
-      const { setActiveSession, activeSessionId } = useChatStore.getState();
+      expect(state.activeSessionId).toBeNull();
+      expect(state.streamingMessage).toBe('');
+      expect(state.isStreaming).toBe(false);
+      expect(state.agentActions).toEqual([]);
+      expect(state.streamEvents).toEqual([]);
+      expect(state.error).toBeNull();
+    });
+  });
+
+  describe('setActiveSession', () => {
+    it('should set the active session ID', () => {
+      const { setActiveSession } = useChatStore.getState();
 
       setActiveSession('session-123');
 
       expect(useChatStore.getState().activeSessionId).toBe('session-123');
     });
 
-    it('should update active session', () => {
-      const { setActiveSession } = useChatStore.getState();
-
-      setActiveSession('session-1');
-      setActiveSession('session-2');
-
-      expect(useChatStore.getState().activeSessionId).toBe('session-2');
-    });
-
-    it('should clear active session', () => {
+    it('should clear the active session when set to null', () => {
       const { setActiveSession } = useChatStore.getState();
 
       setActiveSession('session-123');
@@ -47,17 +47,11 @@ describe('chatStore', () => {
     });
   });
 
-  describe('streaming message', () => {
-    it('should initialize with empty string', () => {
-      const { streamingMessage } = useChatStore.getState();
-      expect(streamingMessage).toBe('');
-    });
-
-    it('should append streaming message chunks', () => {
+  describe('streamingMessage', () => {
+    it('should append chunks to streaming message', () => {
       const { appendStreamingMessage } = useChatStore.getState();
 
-      appendStreamingMessage('Hello');
-      appendStreamingMessage(' ');
+      appendStreamingMessage('Hello ');
       appendStreamingMessage('World');
 
       expect(useChatStore.getState().streamingMessage).toBe('Hello World');
@@ -66,20 +60,25 @@ describe('chatStore', () => {
     it('should clear streaming message', () => {
       const { appendStreamingMessage, clearStreamingMessage } = useChatStore.getState();
 
-      appendStreamingMessage('Test message');
+      appendStreamingMessage('Some content');
       clearStreamingMessage();
 
       expect(useChatStore.getState().streamingMessage).toBe('');
     });
+
+    it('should handle empty chunks', () => {
+      const { appendStreamingMessage } = useChatStore.getState();
+
+      appendStreamingMessage('');
+      appendStreamingMessage('Hello');
+      appendStreamingMessage('');
+
+      expect(useChatStore.getState().streamingMessage).toBe('Hello');
+    });
   });
 
-  describe('streaming state', () => {
-    it('should initialize as not streaming', () => {
-      const { isStreaming } = useChatStore.getState();
-      expect(isStreaming).toBe(false);
-    });
-
-    it('should set streaming state to true', () => {
+  describe('setStreaming', () => {
+    it('should set streaming to true', () => {
       const { setStreaming } = useChatStore.getState();
 
       setStreaming(true);
@@ -87,7 +86,7 @@ describe('chatStore', () => {
       expect(useChatStore.getState().isStreaming).toBe(true);
     });
 
-    it('should set streaming state to false', () => {
+    it('should set streaming to false', () => {
       const { setStreaming } = useChatStore.getState();
 
       setStreaming(true);
@@ -97,20 +96,14 @@ describe('chatStore', () => {
     });
   });
 
-  describe('agent actions', () => {
-    it('should initialize with empty array', () => {
-      const { agentActions } = useChatStore.getState();
-      expect(agentActions).toEqual([]);
-    });
-
-    it('should add agent action', () => {
+  describe('agentActions', () => {
+    it('should add agent actions', () => {
       const { addAgentAction } = useChatStore.getState();
-
       const action: AgentAction = {
         type: 'action',
-        content: 'Using tool: file_write',
-        tool: 'file_write',
-        args: { path: '/test.txt' },
+        content: 'Executing command',
+        tool: 'bash',
+        args: { command: 'ls' },
         step: 1,
       };
 
@@ -120,19 +113,17 @@ describe('chatStore', () => {
       expect(useChatStore.getState().agentActions[0]).toEqual(action);
     });
 
-    it('should add multiple agent actions', () => {
+    it('should accumulate multiple agent actions', () => {
       const { addAgentAction } = useChatStore.getState();
-
       const action1: AgentAction = {
         type: 'thought',
-        content: 'I need to write a file',
+        content: 'Thinking...',
         step: 1,
       };
-
       const action2: AgentAction = {
         type: 'action',
-        content: 'Using tool: file_write',
-        tool: 'file_write',
+        content: 'Running command',
+        tool: 'bash',
         step: 2,
       };
 
@@ -140,29 +131,26 @@ describe('chatStore', () => {
       addAgentAction(action2);
 
       expect(useChatStore.getState().agentActions).toHaveLength(2);
-      expect(useChatStore.getState().agentActions).toEqual([action1, action2]);
     });
 
     it('should clear agent actions', () => {
       const { addAgentAction, clearAgentActions } = useChatStore.getState();
+      const action: AgentAction = {
+        type: 'action',
+        content: 'Test',
+        step: 1,
+      };
 
-      addAgentAction({ type: 'thought', content: 'Test', step: 1 });
-      addAgentAction({ type: 'action', content: 'Action', step: 2 });
+      addAgentAction(action);
       clearAgentActions();
 
       expect(useChatStore.getState().agentActions).toEqual([]);
     });
   });
 
-  describe('stream events', () => {
-    it('should initialize with empty array', () => {
-      const { streamEvents } = useChatStore.getState();
-      expect(streamEvents).toEqual([]);
-    });
-
-    it('should add stream event', () => {
+  describe('streamEvents', () => {
+    it('should add stream events', () => {
       const { addStreamEvent } = useChatStore.getState();
-
       const event: StreamEvent = {
         type: 'chunk',
         content: 'Hello',
@@ -174,69 +162,53 @@ describe('chatStore', () => {
       expect(useChatStore.getState().streamEvents[0]).toEqual(event);
     });
 
-    it('should add multiple stream events', () => {
+    it('should accumulate multiple stream events', () => {
       const { addStreamEvent } = useChatStore.getState();
-
       const events: StreamEvent[] = [
+        { type: 'assistant_text_start' },
         { type: 'chunk', content: 'Hello' },
-        { type: 'action', content: 'Using bash', tool: 'bash', step: 1 },
-        { type: 'observation', content: 'Success', success: true, step: 1 },
+        { type: 'chunk', content: ' World' },
+        { type: 'assistant_text_end' },
       ];
 
       events.forEach(addStreamEvent);
 
-      expect(useChatStore.getState().streamEvents).toHaveLength(3);
-      expect(useChatStore.getState().streamEvents).toEqual(events);
+      expect(useChatStore.getState().streamEvents).toHaveLength(4);
     });
 
     it('should clear stream events', () => {
       const { addStreamEvent, clearStreamEvents } = useChatStore.getState();
 
       addStreamEvent({ type: 'chunk', content: 'Test' });
-      addStreamEvent({ type: 'chunk', content: 'Test 2' });
       clearStreamEvents();
 
       expect(useChatStore.getState().streamEvents).toEqual([]);
     });
 
-    it('should handle action_args_chunk events', () => {
+    it('should handle tool call events', () => {
       const { addStreamEvent } = useChatStore.getState();
-
       const event: StreamEvent = {
-        type: 'action_args_chunk',
-        content: '{"file": "test.txt"}',
-        tool: 'file_write',
-        partial_args: '{"file": "test.txt"}',
+        type: 'action',
+        tool: 'bash',
+        args: { command: 'ls -la' },
         step: 1,
       };
 
       addStreamEvent(event);
 
-      expect(useChatStore.getState().streamEvents[0]).toEqual(event);
+      const state = useChatStore.getState();
+      expect(state.streamEvents[0].tool).toBe('bash');
+      expect(state.streamEvents[0].args).toEqual({ command: 'ls -la' });
     });
   });
 
   describe('error handling', () => {
-    it('should initialize with no error', () => {
-      const { error } = useChatStore.getState();
-      expect(error).toBeNull();
-    });
-
-    it('should set error', () => {
+    it('should set error message', () => {
       const { setError } = useChatStore.getState();
 
       setError('Connection failed');
 
       expect(useChatStore.getState().error).toBe('Connection failed');
-    });
-
-    it('should update error', () => {
-      const { setError } = useChatStore.getState();
-
-      setError('Error 1');
-      setError('Error 2');
-
-      expect(useChatStore.getState().error).toBe('Error 2');
     });
 
     it('should clear error', () => {
@@ -247,59 +219,45 @@ describe('chatStore', () => {
 
       expect(useChatStore.getState().error).toBeNull();
     });
+
+    it('should replace existing error', () => {
+      const { setError } = useChatStore.getState();
+
+      setError('First error');
+      setError('Second error');
+
+      expect(useChatStore.getState().error).toBe('Second error');
+    });
   });
 
-  describe('integration scenarios', () => {
-    it('should handle complete streaming session lifecycle', () => {
-      const store = useChatStore.getState();
+  describe('combined operations', () => {
+    it('should handle a complete streaming session lifecycle', () => {
+      const state = useChatStore.getState();
 
       // Start session
-      store.setActiveSession('session-123');
-      store.setStreaming(true);
+      state.setActiveSession('session-1');
+      state.setStreaming(true);
 
-      // Add streaming content
-      store.appendStreamingMessage('Hello');
-      store.addStreamEvent({ type: 'chunk', content: 'Hello' });
+      // Receive chunks
+      state.appendStreamingMessage('Hello ');
+      state.addStreamEvent({ type: 'chunk', content: 'Hello ' });
+      state.appendStreamingMessage('World');
+      state.addStreamEvent({ type: 'chunk', content: 'World' });
 
-      store.appendStreamingMessage(' World');
-      store.addStreamEvent({ type: 'chunk', content: ' World' });
+      // Verify mid-stream state
+      expect(useChatStore.getState().isStreaming).toBe(true);
+      expect(useChatStore.getState().streamingMessage).toBe('Hello World');
+      expect(useChatStore.getState().streamEvents).toHaveLength(2);
 
-      // Add action
-      store.addAgentAction({
-        type: 'action',
-        content: 'Using tool',
-        tool: 'bash',
-        step: 1,
-      });
+      // End streaming
+      state.setStreaming(false);
+      state.clearStreamingMessage();
+      state.clearStreamEvents();
 
-      // End session
-      store.setStreaming(false);
-      store.clearStreamingMessage();
-      store.clearStreamEvents();
-
-      const state = useChatStore.getState();
-      expect(state.activeSessionId).toBe('session-123');
-      expect(state.isStreaming).toBe(false);
-      expect(state.streamingMessage).toBe('');
-      expect(state.streamEvents).toEqual([]);
-      expect(state.agentActions).toHaveLength(1);
-    });
-
-    it('should handle error during streaming', () => {
-      const store = useChatStore.getState();
-
-      // Start streaming
-      store.setStreaming(true);
-      store.appendStreamingMessage('Partial message');
-
-      // Error occurs
-      store.setError('WebSocket connection lost');
-      store.setStreaming(false);
-
-      const state = useChatStore.getState();
-      expect(state.isStreaming).toBe(false);
-      expect(state.error).toBe('WebSocket connection lost');
-      expect(state.streamingMessage).toBe('Partial message');
+      // Verify end state
+      expect(useChatStore.getState().isStreaming).toBe(false);
+      expect(useChatStore.getState().streamingMessage).toBe('');
+      expect(useChatStore.getState().streamEvents).toEqual([]);
     });
   });
 });

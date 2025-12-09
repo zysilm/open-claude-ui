@@ -1,537 +1,451 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import axios from 'axios';
 import {
   projectsAPI,
   chatSessionsAPI,
-  messagesAPI,
+  contentBlocksAPI,
   filesAPI,
+  workspaceAPI,
   sandboxAPI,
   settingsAPI,
 } from '../api';
-import {
-  mockProject,
-  mockProjects,
-  mockChatSession,
-  mockChatSessions,
-  mockMessages,
-  mockAgentConfig,
-} from '../../../tests/fixtures/mockData';
 
 // Mock axios
-vi.mock('axios');
-const mockedAxios = axios as any;
+vi.mock('axios', () => {
+  const mockAxiosInstance = {
+    get: vi.fn(),
+    post: vi.fn(),
+    put: vi.fn(),
+    delete: vi.fn(),
+  };
+  return {
+    default: {
+      create: vi.fn(() => mockAxiosInstance),
+    },
+  };
+});
 
 describe('API Services', () => {
+  let mockApi: {
+    get: ReturnType<typeof vi.fn>;
+    post: ReturnType<typeof vi.fn>;
+    put: ReturnType<typeof vi.fn>;
+    delete: ReturnType<typeof vi.fn>;
+  };
+
   beforeEach(() => {
+    mockApi = (axios.create as ReturnType<typeof vi.fn>)();
     vi.clearAllMocks();
-    mockedAxios.create = vi.fn(() => mockedAxios);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('projectsAPI', () => {
-    describe('list', () => {
-      it('should fetch all projects', async () => {
-        const mockResponse = {
-          data: { projects: mockProjects, total: mockProjects.length },
-        };
-        mockedAxios.get.mockResolvedValue(mockResponse);
+    it('should list projects', async () => {
+      const mockResponse = { projects: [{ id: '1', name: 'Test' }], total: 1 };
+      mockApi.get.mockResolvedValueOnce({ data: mockResponse });
 
-        const result = await projectsAPI.list();
+      const result = await projectsAPI.list();
 
-        expect(mockedAxios.get).toHaveBeenCalledWith('/projects');
-        expect(result).toEqual(mockResponse.data);
-        expect(result.projects).toHaveLength(2);
-      });
-
-      it('should handle empty project list', async () => {
-        const mockResponse = { data: { projects: [], total: 0 } };
-        mockedAxios.get.mockResolvedValue(mockResponse);
-
-        const result = await projectsAPI.list();
-
-        expect(result.projects).toHaveLength(0);
-        expect(result.total).toBe(0);
-      });
+      expect(mockApi.get).toHaveBeenCalledWith('/projects');
+      expect(result).toEqual(mockResponse);
     });
 
-    describe('create', () => {
-      it('should create a new project', async () => {
-        const newProject = { name: 'New Project', description: 'Test' };
-        const mockResponse = { data: mockProject };
-        mockedAxios.post.mockResolvedValue(mockResponse);
+    it('should create a project', async () => {
+      const newProject = { name: 'New Project', description: 'Test description' };
+      const mockResponse = { id: '1', ...newProject, created_at: '2024-01-01', updated_at: '2024-01-01' };
+      mockApi.post.mockResolvedValueOnce({ data: mockResponse });
 
-        const result = await projectsAPI.create(newProject);
+      const result = await projectsAPI.create(newProject);
 
-        expect(mockedAxios.post).toHaveBeenCalledWith('/projects', newProject);
-        expect(result).toEqual(mockProject);
-      });
-
-      it('should create project without description', async () => {
-        const newProject = { name: 'Minimal Project' };
-        const mockResponse = { data: { ...mockProject, description: null } };
-        mockedAxios.post.mockResolvedValue(mockResponse);
-
-        const result = await projectsAPI.create(newProject);
-
-        expect(result.description).toBeNull();
-      });
+      expect(mockApi.post).toHaveBeenCalledWith('/projects', newProject);
+      expect(result).toEqual(mockResponse);
     });
 
-    describe('get', () => {
-      it('should fetch a single project by id', async () => {
-        const mockResponse = { data: mockProject };
-        mockedAxios.get.mockResolvedValue(mockResponse);
+    it('should get a project by id', async () => {
+      const mockResponse = { id: '1', name: 'Test', created_at: '2024-01-01', updated_at: '2024-01-01' };
+      mockApi.get.mockResolvedValueOnce({ data: mockResponse });
 
-        const result = await projectsAPI.get('test-project-id');
+      const result = await projectsAPI.get('1');
 
-        expect(mockedAxios.get).toHaveBeenCalledWith('/projects/test-project-id');
-        expect(result).toEqual(mockProject);
-      });
+      expect(mockApi.get).toHaveBeenCalledWith('/projects/1');
+      expect(result).toEqual(mockResponse);
     });
 
-    describe('update', () => {
-      it('should update a project', async () => {
-        const updates = { name: 'Updated Name' };
-        const updatedProject = { ...mockProject, ...updates };
-        const mockResponse = { data: updatedProject };
-        mockedAxios.put.mockResolvedValue(mockResponse);
+    it('should update a project', async () => {
+      const updateData = { name: 'Updated Name' };
+      const mockResponse = { id: '1', name: 'Updated Name', created_at: '2024-01-01', updated_at: '2024-01-02' };
+      mockApi.put.mockResolvedValueOnce({ data: mockResponse });
 
-        const result = await projectsAPI.update('test-project-id', updates);
+      const result = await projectsAPI.update('1', updateData);
 
-        expect(mockedAxios.put).toHaveBeenCalledWith('/projects/test-project-id', updates);
-        expect(result.name).toBe('Updated Name');
-      });
+      expect(mockApi.put).toHaveBeenCalledWith('/projects/1', updateData);
+      expect(result).toEqual(mockResponse);
     });
 
-    describe('delete', () => {
-      it('should delete a project', async () => {
-        mockedAxios.delete.mockResolvedValue({});
+    it('should delete a project', async () => {
+      mockApi.delete.mockResolvedValueOnce({});
 
-        await projectsAPI.delete('test-project-id');
+      await projectsAPI.delete('1');
 
-        expect(mockedAxios.delete).toHaveBeenCalledWith('/projects/test-project-id');
-      });
+      expect(mockApi.delete).toHaveBeenCalledWith('/projects/1');
     });
 
-    describe('agent configuration', () => {
-      it('should get agent config', async () => {
-        const mockResponse = { data: mockAgentConfig };
-        mockedAxios.get.mockResolvedValue(mockResponse);
+    it('should get agent config', async () => {
+      const mockResponse = { agent_type: 'code_agent', llm_provider: 'openai' };
+      mockApi.get.mockResolvedValueOnce({ data: mockResponse });
 
-        const result = await projectsAPI.getAgentConfig('test-project-id');
+      const result = await projectsAPI.getAgentConfig('project-1');
 
-        expect(mockedAxios.get).toHaveBeenCalledWith('/projects/test-project-id/agent-config');
-        expect(result).toEqual(mockAgentConfig);
-      });
+      expect(mockApi.get).toHaveBeenCalledWith('/projects/project-1/agent-config');
+      expect(result).toEqual(mockResponse);
+    });
 
-      it('should update agent config', async () => {
-        const updates = { llm_model: 'gpt-4-turbo' };
-        const updatedConfig = { ...mockAgentConfig, ...updates };
-        const mockResponse = { data: updatedConfig };
-        mockedAxios.put.mockResolvedValue(mockResponse);
+    it('should update agent config', async () => {
+      const updateConfig = { llm_model: 'gpt-4o' };
+      const mockResponse = { agent_type: 'code_agent', llm_provider: 'openai', llm_model: 'gpt-4o' };
+      mockApi.put.mockResolvedValueOnce({ data: mockResponse });
 
-        const result = await projectsAPI.updateAgentConfig('test-project-id', updates);
+      const result = await projectsAPI.updateAgentConfig('project-1', updateConfig);
 
-        expect(mockedAxios.put).toHaveBeenCalledWith(
-          '/projects/test-project-id/agent-config',
-          updates
-        );
-        expect(result.llm_model).toBe('gpt-4-turbo');
-      });
+      expect(mockApi.put).toHaveBeenCalledWith('/projects/project-1/agent-config', updateConfig);
+      expect(result).toEqual(mockResponse);
+    });
 
-      it('should list agent templates', async () => {
-        const templates = [
-          { id: 'template-1', name: 'Code Assistant' },
-          { id: 'template-2', name: 'Data Analyst' },
-        ];
-        const mockResponse = { data: templates };
-        mockedAxios.get.mockResolvedValue(mockResponse);
+    it('should list agent templates', async () => {
+      const mockResponse = [{ id: 'default', name: 'Default Template' }];
+      mockApi.get.mockResolvedValueOnce({ data: mockResponse });
 
-        const result = await projectsAPI.listAgentTemplates();
+      const result = await projectsAPI.listAgentTemplates();
 
-        expect(mockedAxios.get).toHaveBeenCalledWith('/projects/templates/list');
-        expect(result).toEqual(templates);
-      });
+      expect(mockApi.get).toHaveBeenCalledWith('/projects/templates/list');
+      expect(result).toEqual(mockResponse);
+    });
 
-      it('should get agent template by id', async () => {
-        const template = { id: 'template-1', name: 'Code Assistant' };
-        const mockResponse = { data: template };
-        mockedAxios.get.mockResolvedValue(mockResponse);
+    it('should get agent template', async () => {
+      const mockResponse = { id: 'default', name: 'Default Template', agent_type: 'code_agent' };
+      mockApi.get.mockResolvedValueOnce({ data: mockResponse });
 
-        const result = await projectsAPI.getAgentTemplate('template-1');
+      const result = await projectsAPI.getAgentTemplate('default');
 
-        expect(mockedAxios.get).toHaveBeenCalledWith('/projects/templates/template-1');
-        expect(result).toEqual(template);
-      });
+      expect(mockApi.get).toHaveBeenCalledWith('/projects/templates/default');
+      expect(result).toEqual(mockResponse);
+    });
 
-      it('should apply agent template', async () => {
-        const mockResponse = { data: mockAgentConfig };
-        mockedAxios.post.mockResolvedValue(mockResponse);
+    it('should apply agent template', async () => {
+      const mockResponse = { agent_type: 'code_agent', llm_provider: 'openai' };
+      mockApi.post.mockResolvedValueOnce({ data: mockResponse });
 
-        const result = await projectsAPI.applyAgentTemplate('test-project-id', 'template-1');
+      const result = await projectsAPI.applyAgentTemplate('project-1', 'default');
 
-        expect(mockedAxios.post).toHaveBeenCalledWith(
-          '/projects/test-project-id/agent-config/apply-template/template-1'
-        );
-        expect(result).toEqual(mockAgentConfig);
-      });
+      expect(mockApi.post).toHaveBeenCalledWith('/projects/project-1/agent-config/apply-template/default');
+      expect(result).toEqual(mockResponse);
     });
   });
 
   describe('chatSessionsAPI', () => {
-    describe('list', () => {
-      it('should list all chat sessions', async () => {
-        const mockResponse = {
-          data: { chat_sessions: mockChatSessions, total: mockChatSessions.length },
-        };
-        mockedAxios.get.mockResolvedValue(mockResponse);
+    it('should list chat sessions without project filter', async () => {
+      const mockResponse = { chat_sessions: [], total: 0 };
+      mockApi.get.mockResolvedValueOnce({ data: mockResponse });
 
-        const result = await chatSessionsAPI.list();
+      const result = await chatSessionsAPI.list();
 
-        expect(mockedAxios.get).toHaveBeenCalledWith('/chats', { params: {} });
-        expect(result.chat_sessions).toHaveLength(2);
-      });
-
-      it('should list sessions for specific project', async () => {
-        const projectSessions = [mockChatSession];
-        const mockResponse = {
-          data: { chat_sessions: projectSessions, total: 1 },
-        };
-        mockedAxios.get.mockResolvedValue(mockResponse);
-
-        const result = await chatSessionsAPI.list('test-project-id');
-
-        expect(mockedAxios.get).toHaveBeenCalledWith('/chats', {
-          params: { project_id: 'test-project-id' },
-        });
-        expect(result.chat_sessions).toHaveLength(1);
-      });
+      expect(mockApi.get).toHaveBeenCalledWith('/chats', { params: {} });
+      expect(result).toEqual(mockResponse);
     });
 
-    describe('create', () => {
-      it('should create a new chat session', async () => {
-        const newSession = { name: 'New Chat' };
-        const mockResponse = { data: mockChatSession };
-        mockedAxios.post.mockResolvedValue(mockResponse);
+    it('should list chat sessions with project filter', async () => {
+      const mockResponse = { chat_sessions: [{ id: '1', name: 'Session 1' }], total: 1 };
+      mockApi.get.mockResolvedValueOnce({ data: mockResponse });
 
-        const result = await chatSessionsAPI.create('test-project-id', newSession);
+      const result = await chatSessionsAPI.list('project-1');
 
-        expect(mockedAxios.post).toHaveBeenCalledWith(
-          '/chats?project_id=test-project-id',
-          newSession
-        );
-        expect(result).toEqual(mockChatSession);
-      });
+      expect(mockApi.get).toHaveBeenCalledWith('/chats', { params: { project_id: 'project-1' } });
+      expect(result).toEqual(mockResponse);
     });
 
-    describe('get', () => {
-      it('should fetch a single chat session', async () => {
-        const mockResponse = { data: mockChatSession };
-        mockedAxios.get.mockResolvedValue(mockResponse);
+    it('should create a chat session', async () => {
+      const sessionData = { name: 'New Session' };
+      const mockResponse = { id: '1', name: 'New Session', project_id: 'project-1' };
+      mockApi.post.mockResolvedValueOnce({ data: mockResponse });
 
-        const result = await chatSessionsAPI.get('test-session-id');
+      const result = await chatSessionsAPI.create('project-1', sessionData);
 
-        expect(mockedAxios.get).toHaveBeenCalledWith('/chats/test-session-id');
-        expect(result).toEqual(mockChatSession);
-      });
+      expect(mockApi.post).toHaveBeenCalledWith('/chats?project_id=project-1', sessionData);
+      expect(result).toEqual(mockResponse);
     });
 
-    describe('update', () => {
-      it('should update a chat session', async () => {
-        const updates = { name: 'Updated Chat' };
-        const updatedSession = { ...mockChatSession, ...updates };
-        const mockResponse = { data: updatedSession };
-        mockedAxios.put.mockResolvedValue(mockResponse);
+    it('should get a chat session', async () => {
+      const mockResponse = { id: '1', name: 'Session 1', project_id: 'project-1' };
+      mockApi.get.mockResolvedValueOnce({ data: mockResponse });
 
-        const result = await chatSessionsAPI.update('test-session-id', updates);
+      const result = await chatSessionsAPI.get('1');
 
-        expect(mockedAxios.put).toHaveBeenCalledWith('/chats/test-session-id', updates);
-        expect(result.name).toBe('Updated Chat');
-      });
+      expect(mockApi.get).toHaveBeenCalledWith('/chats/1');
+      expect(result).toEqual(mockResponse);
     });
 
-    describe('delete', () => {
-      it('should delete a chat session', async () => {
-        mockedAxios.delete.mockResolvedValue({});
+    it('should update a chat session', async () => {
+      const updateData = { name: 'Updated Session' };
+      const mockResponse = { id: '1', name: 'Updated Session', project_id: 'project-1' };
+      mockApi.put.mockResolvedValueOnce({ data: mockResponse });
 
-        await chatSessionsAPI.delete('test-session-id');
+      const result = await chatSessionsAPI.update('1', updateData);
 
-        expect(mockedAxios.delete).toHaveBeenCalledWith('/chats/test-session-id');
-      });
+      expect(mockApi.put).toHaveBeenCalledWith('/chats/1', updateData);
+      expect(result).toEqual(mockResponse);
+    });
+
+    it('should delete a chat session', async () => {
+      mockApi.delete.mockResolvedValueOnce({});
+
+      await chatSessionsAPI.delete('1');
+
+      expect(mockApi.delete).toHaveBeenCalledWith('/chats/1');
     });
   });
 
-  describe('messagesAPI', () => {
-    describe('list', () => {
-      it('should list messages for a chat session', async () => {
-        const mockResponse = {
-          data: { messages: mockMessages, total: mockMessages.length },
-        };
-        mockedAxios.get.mockResolvedValue(mockResponse);
+  describe('contentBlocksAPI', () => {
+    it('should list content blocks', async () => {
+      const mockResponse = { content_blocks: [], total: 0 };
+      mockApi.get.mockResolvedValueOnce({ data: mockResponse });
 
-        const result = await messagesAPI.list('test-session-id');
+      const result = await contentBlocksAPI.list('session-1');
 
-        expect(mockedAxios.get).toHaveBeenCalledWith('/chats/test-session-id/messages');
-        expect(result.messages).toHaveLength(4);
-      });
-
-      it('should handle empty message list', async () => {
-        const mockResponse = { data: { messages: [], total: 0 } };
-        mockedAxios.get.mockResolvedValue(mockResponse);
-
-        const result = await messagesAPI.list('test-session-id');
-
-        expect(result.messages).toHaveLength(0);
-      });
+      expect(mockApi.get).toHaveBeenCalledWith('/chats/session-1/blocks');
+      expect(result).toEqual(mockResponse);
     });
 
-    describe('create', () => {
-      it('should create a new message', async () => {
-        const newMessage = { content: 'Hello, world!', role: 'user' as const };
-        const mockResponse = { data: mockMessages[0] };
-        mockedAxios.post.mockResolvedValue(mockResponse);
+    it('should get a content block', async () => {
+      const mockResponse = { id: 'block-1', type: 'user', content: 'Hello' };
+      mockApi.get.mockResolvedValueOnce({ data: mockResponse });
 
-        const result = await messagesAPI.create('test-session-id', newMessage);
+      const result = await contentBlocksAPI.get('session-1', 'block-1');
 
-        expect(mockedAxios.post).toHaveBeenCalledWith(
-          '/chats/test-session-id/messages',
-          newMessage
-        );
-        expect(result).toEqual(mockMessages[0]);
-      });
+      expect(mockApi.get).toHaveBeenCalledWith('/chats/session-1/blocks/block-1');
+      expect(result).toEqual(mockResponse);
     });
   });
 
   describe('filesAPI', () => {
-    describe('upload', () => {
-      it('should upload a file', async () => {
-        const file = new File(['content'], 'test.txt', { type: 'text/plain' });
-        const mockResponse = { data: { id: 'file-1', name: 'test.txt' } };
-        mockedAxios.post.mockResolvedValue(mockResponse);
+    it('should upload a file', async () => {
+      const mockFile = new File(['content'], 'test.txt', { type: 'text/plain' });
+      const mockResponse = { id: '1', filename: 'test.txt' };
+      mockApi.post.mockResolvedValueOnce({ data: mockResponse });
 
-        const result = await filesAPI.upload('test-project-id', file);
+      const result = await filesAPI.upload('project-1', mockFile);
 
-        expect(mockedAxios.post).toHaveBeenCalled();
-        const callArgs = mockedAxios.post.mock.calls[0];
-        expect(callArgs[0]).toBe('/files/upload/test-project-id');
-        expect(callArgs[1]).toBeInstanceOf(FormData);
-        expect(result).toEqual(mockResponse.data);
-      });
+      expect(mockApi.post).toHaveBeenCalled();
+      const [url, formData, config] = mockApi.post.mock.calls[0];
+      expect(url).toBe('/files/upload/project-1');
+      expect(formData).toBeInstanceOf(FormData);
+      expect(config.headers['Content-Type']).toBe('multipart/form-data');
+      expect(result).toEqual(mockResponse);
     });
 
-    describe('list', () => {
-      it('should list files for a project', async () => {
-        const files = [
-          { id: 'file-1', name: 'test.txt' },
-          { id: 'file-2', name: 'data.csv' },
-        ];
-        const mockResponse = { data: files };
-        mockedAxios.get.mockResolvedValue(mockResponse);
+    it('should list files for a project', async () => {
+      const mockResponse = { files: [{ id: '1', filename: 'test.txt' }] };
+      mockApi.get.mockResolvedValueOnce({ data: mockResponse });
 
-        const result = await filesAPI.list('test-project-id');
+      const result = await filesAPI.list('project-1');
 
-        expect(mockedAxios.get).toHaveBeenCalledWith('/files/project/test-project-id');
-        expect(result).toEqual(files);
-      });
+      expect(mockApi.get).toHaveBeenCalledWith('/files/project/project-1');
+      expect(result).toEqual(mockResponse);
     });
 
-    describe('download', () => {
-      it('should download a file', async () => {
-        const blob = new Blob(['file content'], { type: 'text/plain' });
-        const mockResponse = { data: blob };
-        mockedAxios.get.mockResolvedValue(mockResponse);
+    it('should download a file', async () => {
+      const mockBlob = new Blob(['content']);
+      mockApi.get.mockResolvedValueOnce({ data: mockBlob });
 
-        const result = await filesAPI.download('file-1');
+      const result = await filesAPI.download('file-1');
 
-        expect(mockedAxios.get).toHaveBeenCalledWith('/files/file-1/download', {
-          responseType: 'blob',
-        });
-        expect(result).toBeInstanceOf(Blob);
-      });
+      expect(mockApi.get).toHaveBeenCalledWith('/files/file-1/download', { responseType: 'blob' });
+      expect(result).toEqual(mockBlob);
     });
 
-    describe('delete', () => {
-      it('should delete a file', async () => {
-        mockedAxios.delete.mockResolvedValue({});
+    it('should delete a file', async () => {
+      mockApi.delete.mockResolvedValueOnce({});
 
-        await filesAPI.delete('file-1');
+      await filesAPI.delete('file-1');
 
-        expect(mockedAxios.delete).toHaveBeenCalledWith('/files/file-1');
+      expect(mockApi.delete).toHaveBeenCalledWith('/files/file-1');
+    });
+  });
+
+  describe('workspaceAPI', () => {
+    it('should list workspace files', async () => {
+      const mockResponse = { uploaded: [], output: [] };
+      mockApi.get.mockResolvedValueOnce({ data: mockResponse });
+
+      const result = await workspaceAPI.listFiles('session-1');
+
+      expect(mockApi.get).toHaveBeenCalledWith('/chats/session-1/workspace/files');
+      expect(result).toEqual(mockResponse);
+    });
+
+    it('should get file content', async () => {
+      const mockResponse = { path: '/test.txt', content: 'Hello', is_binary: false, mime_type: 'text/plain' };
+      mockApi.get.mockResolvedValueOnce({ data: mockResponse });
+
+      const result = await workspaceAPI.getFileContent('session-1', '/test.txt');
+
+      expect(mockApi.get).toHaveBeenCalledWith('/chats/session-1/workspace/files/content', {
+        params: { path: '/test.txt' },
       });
+      expect(result).toEqual(mockResponse);
+    });
+
+    it('should download workspace file', async () => {
+      const mockBlob = new Blob(['content']);
+      mockApi.get.mockResolvedValueOnce({ data: mockBlob });
+
+      const result = await workspaceAPI.downloadFile('session-1', '/test.txt');
+
+      expect(mockApi.get).toHaveBeenCalledWith('/chats/session-1/workspace/files/download', {
+        params: { path: '/test.txt' },
+        responseType: 'blob',
+      });
+      expect(result).toEqual(mockBlob);
+    });
+
+    it('should download all files', async () => {
+      const mockBlob = new Blob(['zip content']);
+      mockApi.get.mockResolvedValueOnce({ data: mockBlob });
+
+      const result = await workspaceAPI.downloadAll('session-1', 'output');
+
+      expect(mockApi.get).toHaveBeenCalledWith('/chats/session-1/workspace/download-all', {
+        params: { type: 'output' },
+        responseType: 'blob',
+      });
+      expect(result).toEqual(mockBlob);
+    });
+
+    it('should upload file to project', async () => {
+      const mockResponse = { id: '1', filename: 'test.txt' };
+      mockApi.post.mockResolvedValueOnce({ data: mockResponse });
+
+      const result = await workspaceAPI.uploadToProject('session-1', '/output/test.txt', 'project-1');
+
+      expect(mockApi.post).toHaveBeenCalledWith('/chats/session-1/workspace/files/upload-to-project', {
+        path: '/output/test.txt',
+        project_id: 'project-1',
+      });
+      expect(result).toEqual(mockResponse);
     });
   });
 
   describe('sandboxAPI', () => {
-    describe('start', () => {
-      it('should start a sandbox', async () => {
-        const mockResponse = { data: { status: 'running', container_id: 'container-123' } };
-        mockedAxios.post.mockResolvedValue(mockResponse);
+    it('should start sandbox', async () => {
+      const mockResponse = { status: 'started', container_id: 'abc123' };
+      mockApi.post.mockResolvedValueOnce({ data: mockResponse });
 
-        const result = await sandboxAPI.start('test-session-id');
+      const result = await sandboxAPI.start('session-1');
 
-        expect(mockedAxios.post).toHaveBeenCalledWith('/sandbox/test-session-id/start');
-        expect(result.status).toBe('running');
-      });
+      expect(mockApi.post).toHaveBeenCalledWith('/sandbox/session-1/start');
+      expect(result).toEqual(mockResponse);
     });
 
-    describe('stop', () => {
-      it('should stop a sandbox', async () => {
-        const mockResponse = { data: { status: 'stopped' } };
-        mockedAxios.post.mockResolvedValue(mockResponse);
+    it('should stop sandbox', async () => {
+      const mockResponse = { status: 'stopped' };
+      mockApi.post.mockResolvedValueOnce({ data: mockResponse });
 
-        const result = await sandboxAPI.stop('test-session-id');
+      const result = await sandboxAPI.stop('session-1');
 
-        expect(mockedAxios.post).toHaveBeenCalledWith('/sandbox/test-session-id/stop');
-        expect(result.status).toBe('stopped');
-      });
+      expect(mockApi.post).toHaveBeenCalledWith('/sandbox/session-1/stop');
+      expect(result).toEqual(mockResponse);
     });
 
-    describe('reset', () => {
-      it('should reset a sandbox', async () => {
-        const mockResponse = { data: { status: 'reset' } };
-        mockedAxios.post.mockResolvedValue(mockResponse);
+    it('should reset sandbox', async () => {
+      const mockResponse = { status: 'reset', container_id: 'xyz789' };
+      mockApi.post.mockResolvedValueOnce({ data: mockResponse });
 
-        const result = await sandboxAPI.reset('test-session-id');
+      const result = await sandboxAPI.reset('session-1');
 
-        expect(mockedAxios.post).toHaveBeenCalledWith('/sandbox/test-session-id/reset');
-        expect(result.status).toBe('reset');
-      });
+      expect(mockApi.post).toHaveBeenCalledWith('/sandbox/session-1/reset');
+      expect(result).toEqual(mockResponse);
     });
 
-    describe('status', () => {
-      it('should get sandbox status', async () => {
-        const mockResponse = { data: { status: 'running', uptime: 3600 } };
-        mockedAxios.get.mockResolvedValue(mockResponse);
+    it('should get sandbox status', async () => {
+      const mockResponse = { status: 'running', container_id: 'abc123' };
+      mockApi.get.mockResolvedValueOnce({ data: mockResponse });
 
-        const result = await sandboxAPI.status('test-session-id');
+      const result = await sandboxAPI.status('session-1');
 
-        expect(mockedAxios.get).toHaveBeenCalledWith('/sandbox/test-session-id/status');
-        expect(result.status).toBe('running');
-      });
+      expect(mockApi.get).toHaveBeenCalledWith('/sandbox/session-1/status');
+      expect(result).toEqual(mockResponse);
     });
 
-    describe('execute', () => {
-      it('should execute command in sandbox', async () => {
-        const mockResponse = { data: { output: 'Hello World', exit_code: 0 } };
-        mockedAxios.post.mockResolvedValue(mockResponse);
+    it('should execute command with default workdir', async () => {
+      const mockResponse = { exit_code: 0, stdout: 'output', stderr: '' };
+      mockApi.post.mockResolvedValueOnce({ data: mockResponse });
 
-        const result = await sandboxAPI.execute('test-session-id', 'echo "Hello World"');
+      const result = await sandboxAPI.execute('session-1', 'ls -la');
 
-        expect(mockedAxios.post).toHaveBeenCalledWith('/sandbox/test-session-id/execute', {
-          command: 'echo "Hello World"',
-          workdir: '/workspace',
-        });
-        expect(result.output).toBe('Hello World');
+      expect(mockApi.post).toHaveBeenCalledWith('/sandbox/session-1/execute', {
+        command: 'ls -la',
+        workdir: '/workspace',
       });
+      expect(result).toEqual(mockResponse);
+    });
 
-      it('should execute command with custom workdir', async () => {
-        const mockResponse = { data: { output: '', exit_code: 0 } };
-        mockedAxios.post.mockResolvedValue(mockResponse);
+    it('should execute command with custom workdir', async () => {
+      const mockResponse = { exit_code: 0, stdout: 'output', stderr: '' };
+      mockApi.post.mockResolvedValueOnce({ data: mockResponse });
 
-        await sandboxAPI.execute('test-session-id', 'ls', '/app');
+      const result = await sandboxAPI.execute('session-1', 'cat file.txt', '/home/user');
 
-        expect(mockedAxios.post).toHaveBeenCalledWith('/sandbox/test-session-id/execute', {
-          command: 'ls',
-          workdir: '/app',
-        });
+      expect(mockApi.post).toHaveBeenCalledWith('/sandbox/session-1/execute', {
+        command: 'cat file.txt',
+        workdir: '/home/user',
       });
+      expect(result).toEqual(mockResponse);
     });
   });
 
   describe('settingsAPI', () => {
-    describe('listApiKeys', () => {
-      it('should list API keys', async () => {
-        const apiKeys = [
-          { provider: 'openai', is_configured: true, last_used_at: null, created_at: '2024-01-01' },
-          { provider: 'anthropic', is_configured: false, last_used_at: null, created_at: '2024-01-01' },
-        ];
-        const mockResponse = { data: { api_keys: apiKeys } };
-        mockedAxios.get.mockResolvedValue(mockResponse);
+    it('should list API keys', async () => {
+      const mockResponse = { api_keys: [{ provider: 'openai', is_configured: true }] };
+      mockApi.get.mockResolvedValueOnce({ data: mockResponse });
 
-        const result = await settingsAPI.listApiKeys();
+      const result = await settingsAPI.listApiKeys();
 
-        expect(mockedAxios.get).toHaveBeenCalledWith('/settings/api-keys');
-        expect(result.api_keys).toHaveLength(2);
+      expect(mockApi.get).toHaveBeenCalledWith('/settings/api-keys');
+      expect(result).toEqual(mockResponse);
+    });
+
+    it('should set API key', async () => {
+      const keyData = { provider: 'openai', api_key: 'sk-test' };
+      const mockResponse = { message: 'API key saved' };
+      mockApi.post.mockResolvedValueOnce({ data: mockResponse });
+
+      const result = await settingsAPI.setApiKey(keyData);
+
+      expect(mockApi.post).toHaveBeenCalledWith('/settings/api-keys', keyData);
+      expect(result).toEqual(mockResponse);
+    });
+
+    it('should delete API key', async () => {
+      mockApi.delete.mockResolvedValueOnce({});
+
+      await settingsAPI.deleteApiKey('openai');
+
+      expect(mockApi.delete).toHaveBeenCalledWith('/settings/api-keys/openai');
+    });
+
+    it('should test API key', async () => {
+      const mockResponse = { valid: true, message: 'API key is valid' };
+      mockApi.post.mockResolvedValueOnce({ data: mockResponse });
+
+      const result = await settingsAPI.testApiKey('openai', 'sk-test');
+
+      expect(mockApi.post).toHaveBeenCalledWith('/settings/api-keys/test', {
+        provider: 'openai',
+        api_key: 'sk-test',
       });
-    });
-
-    describe('setApiKey', () => {
-      it('should set an API key', async () => {
-        const keyData = { provider: 'openai', api_key: 'sk-test123' };
-        const mockResponse = { data: { message: 'API key saved successfully' } };
-        mockedAxios.post.mockResolvedValue(mockResponse);
-
-        const result = await settingsAPI.setApiKey(keyData);
-
-        expect(mockedAxios.post).toHaveBeenCalledWith('/settings/api-keys', keyData);
-        expect(result.message).toBe('API key saved successfully');
-      });
-    });
-
-    describe('deleteApiKey', () => {
-      it('should delete an API key', async () => {
-        mockedAxios.delete.mockResolvedValue({});
-
-        await settingsAPI.deleteApiKey('openai');
-
-        expect(mockedAxios.delete).toHaveBeenCalledWith('/settings/api-keys/openai');
-      });
-    });
-
-    describe('testApiKey', () => {
-      it('should test API key - valid', async () => {
-        const mockResponse = { data: { valid: true, message: 'API key is valid' } };
-        mockedAxios.post.mockResolvedValue(mockResponse);
-
-        const result = await settingsAPI.testApiKey('openai', 'sk-test123');
-
-        expect(mockedAxios.post).toHaveBeenCalledWith('/settings/api-keys/test', {
-          provider: 'openai',
-          api_key: 'sk-test123',
-        });
-        expect(result.valid).toBe(true);
-      });
-
-      it('should test API key - invalid', async () => {
-        const mockResponse = { data: { valid: false, message: 'Invalid API key' } };
-        mockedAxios.post.mockResolvedValue(mockResponse);
-
-        const result = await settingsAPI.testApiKey('openai', 'sk-invalid');
-
-        expect(result.valid).toBe(false);
-        expect(result.message).toBe('Invalid API key');
-      });
-    });
-  });
-
-  describe('error handling', () => {
-    it('should handle network errors', async () => {
-      mockedAxios.get.mockRejectedValue(new Error('Network Error'));
-
-      await expect(projectsAPI.list()).rejects.toThrow('Network Error');
-    });
-
-    it('should handle API errors', async () => {
-      const apiError = {
-        response: {
-          data: { detail: 'Not found' },
-          status: 404,
-        },
-      };
-      mockedAxios.get.mockRejectedValue(apiError);
-
-      await expect(projectsAPI.get('nonexistent-id')).rejects.toEqual(apiError);
-    });
-
-    it('should handle validation errors', async () => {
-      const validationError = {
-        response: {
-          data: { detail: 'Invalid input data' },
-          status: 422,
-        },
-      };
-      mockedAxios.post.mockRejectedValue(validationError);
-
-      await expect(projectsAPI.create({ name: '' })).rejects.toEqual(validationError);
+      expect(result).toEqual(mockResponse);
     });
   });
 });

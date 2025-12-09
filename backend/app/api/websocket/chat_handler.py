@@ -2,21 +2,33 @@
 
 import json
 import asyncio
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Dict, Any, Optional
 from fastapi import WebSocket, WebSocketDisconnect
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.models.database import (
-    ChatSession, AgentConfiguration,
-    ContentBlock, ContentBlockType, ContentBlockAuthor
+    ChatSession,
+    AgentConfiguration,
+    ContentBlock,
+    ContentBlockType,
+    ContentBlockAuthor,
 )
 from sqlalchemy import func
 from app.core.llm import create_llm_provider_with_db
 from app.core.storage.database import AsyncSessionLocal
 from app.core.agent.executor import ReActAgent
-from app.core.agent.tools import ToolRegistry, BashTool, FileReadTool, FileWriteTool, SearchTool, SetupEnvironmentTool, ThinkTool, LineEditTool
+from app.core.agent.tools import (
+    ToolRegistry,
+    BashTool,
+    FileReadTool,
+    FileWriteTool,
+    SearchTool,
+    SetupEnvironmentTool,
+    ThinkTool,
+    LineEditTool,
+)
 from app.core.sandbox.manager import get_container_manager
 from app.api.websocket.task_registry import get_agent_task_registry
 from app.api.websocket.streaming_manager import streaming_manager
@@ -26,12 +38,13 @@ from collections import deque
 from app.services.message_orchestrator import MessageOrchestrator
 from app.services.message_persistence import MessagePersistenceService
 from app.services.streaming_buffer import StreamingBuffer
-from app.services.event_bus import EventBus, StreamingEvent
+from app.services.event_bus import EventBus
 
 
 @dataclass
 class ToolCallState:
     """State for an active tool call."""
+
     tool_name: str
     partial_args: str = ""
     step: int = 0
@@ -41,6 +54,7 @@ class ToolCallState:
 @dataclass
 class StreamState:
     """State for a streaming block, used for reconnection support."""
+
     block_id: str
     session_id: str
     accumulated_content: str = ""
@@ -82,9 +96,7 @@ def create_orchestrator(db: AsyncSession) -> MessageOrchestrator:
     # Create orchestrator with the session-specific persistence
     # but shared stateless services (event bus, buffer)
     return MessageOrchestrator(
-        persistence=persistence,
-        buffer=_streaming_buffer,
-        event_bus=_event_bus
+        persistence=persistence, buffer=_streaming_buffer, event_bus=_event_bus
     )
 
 
@@ -101,15 +113,17 @@ def is_vision_model(model_name: str) -> bool:
     model_lower = model_name.lower()
 
     # OpenAI vision models
-    if any(name in model_lower for name in ['gpt-4o', 'gpt-4-turbo', 'gpt-4-vision']):
+    if any(name in model_lower for name in ["gpt-4o", "gpt-4-turbo", "gpt-4-vision"]):
         return True
 
     # Anthropic Claude 3+ models (all support vision)
-    if any(name in model_lower for name in ['claude-3', 'claude-sonnet', 'claude-opus', 'claude-haiku']):
+    if any(
+        name in model_lower for name in ["claude-3", "claude-sonnet", "claude-opus", "claude-haiku"]
+    ):
         return True
 
     # Google Gemini vision models
-    if 'gemini' in model_lower and ('vision' in model_lower or 'pro' in model_lower):
+    if "gemini" in model_lower and ("vision" in model_lower or "pro" in model_lower):
         return True
 
     return False
@@ -157,7 +171,7 @@ class ChatWebSocketHandler:
             )
             result = await self.db.execute(query)
             max_seq = result.scalar_one_or_none()
-            self._sequence_cache[session_id] = (max_seq or 0)
+            self._sequence_cache[session_id] = max_seq or 0
 
         # Increment and return
         self._sequence_cache[session_id] += 1
@@ -170,7 +184,7 @@ class ChatWebSocketHandler:
         author: ContentBlockAuthor,
         content: dict,
         parent_block_id: str | None = None,
-        metadata: dict | None = None
+        metadata: dict | None = None,
     ) -> ContentBlock:
         """
         Create and persist a content block.
@@ -198,7 +212,7 @@ class ChatWebSocketHandler:
                 author=author,
                 content=content,
                 parent_block_id=parent_block_id,
-                block_metadata=metadata or {}
+                block_metadata=metadata or {},
             )
             self.db.add(block)
             await self.db.flush()  # Get the ID
@@ -228,11 +242,13 @@ class ChatWebSocketHandler:
         try:
             # Check for existing running task
             existing_task = await self.task_registry.get_task(session_id)
-            if existing_task and existing_task.status == 'running':
+            if existing_task and existing_task.status == "running":
                 print(f"[TASK REGISTRY] Found existing running task for session {session_id}")
                 await self._attach_to_existing_stream(session_id, existing_task)
                 # Don't return - fall through to main message loop to accept new messages
-                print(f"[TASK REGISTRY] Stream attachment completed, continuing to main message loop")
+                print(
+                    "[TASK REGISTRY] Stream attachment completed, continuing to main message loop"
+                )
 
             # Verify session exists and get project config
             session_query = select(ChatSession).where(ChatSession.id == session_id)
@@ -240,10 +256,9 @@ class ChatWebSocketHandler:
             session = session_result.scalar_one_or_none()
 
             if not session:
-                await self.websocket.send_json({
-                    "type": "error",
-                    "content": f"Chat session {session_id} not found"
-                })
+                await self.websocket.send_json(
+                    {"type": "error", "content": f"Chat session {session_id} not found"}
+                )
                 await self.websocket.close()
                 return
 
@@ -255,10 +270,9 @@ class ChatWebSocketHandler:
             agent_config = config_result.scalar_one_or_none()
 
             if not agent_config:
-                await self.websocket.send_json({
-                    "type": "error",
-                    "content": "Agent configuration not found"
-                })
+                await self.websocket.send_json(
+                    {"type": "error", "content": "Agent configuration not found"}
+                )
                 await self.websocket.close()
                 return
 
@@ -277,9 +291,7 @@ class ChatWebSocketHandler:
                     # Run message handling in background so we can receive cancel messages
                     self.current_agent_task = asyncio.create_task(
                         self._handle_user_message(
-                            session_id,
-                            message_data.get("content", ""),
-                            agent_config
+                            session_id, message_data.get("content", ""), agent_config
                         )
                     )
 
@@ -288,24 +300,24 @@ class ChatWebSocketHandler:
                         session_id=session_id,
                         message_id="pending",  # Will be updated when message is created
                         task=self.current_agent_task,
-                        cancel_event=self.cancel_event
+                        cancel_event=self.cancel_event,
                     )
                     print(f"[TASK REGISTRY] Registered new task for session {session_id}")
                 elif message_data.get("type") == "cancel":
                     # User wants to cancel the current agent execution
-                    print(f"[CHAT HANDLER] ⚠️ CANCEL REQUEST RECEIVED!")
+                    print("[CHAT HANDLER] ⚠️ CANCEL REQUEST RECEIVED!")
                     print(f"[CHAT HANDLER] cancel_event exists: {self.cancel_event is not None}")
-                    print(f"[CHAT HANDLER] current_agent_task exists: {self.current_agent_task is not None}")
+                    print(
+                        f"[CHAT HANDLER] current_agent_task exists: {self.current_agent_task is not None}"
+                    )
                     if self.cancel_event:
                         self.cancel_event.set()
-                        print(f"[CHAT HANDLER] ✓ Cancel event SET")
+                        print("[CHAT HANDLER] ✓ Cancel event SET")
                     if self.current_agent_task:
                         self.current_agent_task.cancel()
-                        print(f"[CHAT HANDLER] ✓ Agent task CANCELLED")
-                    await self.websocket.send_json({
-                        "type": "cancel_acknowledged"
-                    })
-                    print(f"[CHAT HANDLER] Sent cancel_acknowledged to client")
+                        print("[CHAT HANDLER] ✓ Agent task CANCELLED")
+                    await self.websocket.send_json({"type": "cancel_acknowledged"})
+                    print("[CHAT HANDLER] Sent cancel_acknowledged to client")
 
         except WebSocketDisconnect:
             print(f"WebSocket disconnected for session {session_id}")
@@ -316,27 +328,21 @@ class ChatWebSocketHandler:
             # Ensure streaming manager handles any pending finalization
             await streaming_manager.handle_disconnect(session_id)
             try:
-                await self.websocket.send_json({
-                    "type": "error",
-                    "content": f"Error: {str(e)}"
-                })
-            except:
+                await self.websocket.send_json({"type": "error", "content": f"Error: {str(e)}"})
+            except Exception:
                 pass  # WebSocket might already be closed
         finally:
             try:
                 await self.websocket.close()
-            except:
+            except Exception:
                 pass
 
     async def _handle_user_message(
-        self,
-        session_id: str,
-        content: str,
-        agent_config: AgentConfiguration
+        self, session_id: str, content: str, agent_config: AgentConfiguration
     ):
         """Handle incoming user message and stream agent response."""
         print(f"\n{'='*80}")
-        print(f"[CHAT HANDLER] Handling user message")
+        print("[CHAT HANDLER] Handling user message")
         print(f"  Session ID: {session_id}")
         print(f"  User Message: {content[:100]}...")
         print(f"  LLM Provider: {agent_config.llm_provider}")
@@ -349,15 +355,16 @@ class ChatWebSocketHandler:
             session_id=session_id,
             block_type=ContentBlockType.USER_TEXT,
             author=ContentBlockAuthor.USER,
-            content={"text": content}
+            content={"text": content},
         )
-        print(f"[CHAT HANDLER] Created user_text block {user_block.id} (seq: {user_block.sequence_number})")
+        print(
+            f"[CHAT HANDLER] Created user_text block {user_block.id} (seq: {user_block.sequence_number})"
+        )
 
         # Send user_text_block event
-        await self.websocket.send_json({
-            "type": "user_text_block",
-            "block": self._block_to_dict(user_block)
-        })
+        await self.websocket.send_json(
+            {"type": "user_text_block", "block": self._block_to_dict(user_block)}
+        )
 
         # Generate title for first message (run in background)
         asyncio.create_task(self._generate_title_if_needed(session_id, content, agent_config))
@@ -367,26 +374,28 @@ class ChatWebSocketHandler:
         print(f"[CHAT HANDLER] Conversation history length: {len(history)}")
 
         # Debug: Log the full conversation history to verify tool outputs are included
-        print(f"[CHAT HANDLER] Full conversation history:")
+        print("[CHAT HANDLER] Full conversation history:")
         for i, msg in enumerate(history):
             role = msg.get("role", "unknown")
             content_preview = str(msg.get("content", ""))[:100]
             has_tool_call = "tool_call" in msg
-            print(f"  [{i}] {role}: {content_preview}{'...' if len(str(msg.get('content', ''))) > 100 else ''}")
+            print(
+                f"  [{i}] {role}: {content_preview}{'...' if len(str(msg.get('content', ''))) > 100 else ''}"
+            )
             if has_tool_call:
                 print(f"       Tool: {msg['tool_call']['name']}")
-        print(f"[CHAT HANDLER] ---")
+        print("[CHAT HANDLER] ---")
 
         # Create LLM provider (with database API key lookup)
         try:
-            print(f"[CHAT HANDLER] Creating LLM provider...")
+            print("[CHAT HANDLER] Creating LLM provider...")
             llm_provider = await create_llm_provider_with_db(
                 provider=agent_config.llm_provider,
                 model=agent_config.llm_model,
                 llm_config=agent_config.llm_config,
                 db=self.db,
             )
-            print(f"[CHAT HANDLER] LLM provider created successfully")
+            print("[CHAT HANDLER] LLM provider created successfully")
 
             # Check if agent mode is enabled (has tools)
             use_agent = agent_config.enabled_tools and len(agent_config.enabled_tools) > 0
@@ -394,39 +403,28 @@ class ChatWebSocketHandler:
 
             if use_agent:
                 # Agent mode - use ReAct agent with tools
-                print(f"[CHAT HANDLER] Starting agent response...")
+                print("[CHAT HANDLER] Starting agent response...")
                 await self._handle_agent_response(
-                    session_id,
-                    content,
-                    history,
-                    llm_provider,
-                    agent_config
+                    session_id, content, history, llm_provider, agent_config
                 )
             else:
                 # Simple chat mode - direct LLM response
-                print(f"[CHAT HANDLER] Starting simple response...")
-                await self._handle_simple_response(
-                    session_id,
-                    history,
-                    llm_provider,
-                    agent_config
-                )
+                print("[CHAT HANDLER] Starting simple response...")
+                await self._handle_simple_response(session_id, history, llm_provider, agent_config)
 
         except Exception as e:
             print(f"[CHAT HANDLER] ERROR: {str(e)}")
             import traceback
+
             traceback.print_exc()
-            await self.websocket.send_json({
-                "type": "error",
-                "content": f"Error: {str(e)}"
-            })
+            await self.websocket.send_json({"type": "error", "content": f"Error: {str(e)}"})
 
     async def _handle_simple_response(
         self,
         session_id: str,
         history: list[Dict[str, str]],
         llm_provider,
-        agent_config: AgentConfiguration
+        agent_config: AgentConfiguration,
     ):
         """Handle simple LLM response without agent (with incremental saving)."""
         global _chunk_buffers
@@ -434,10 +432,7 @@ class ChatWebSocketHandler:
         # Add system instructions if present
         messages = []
         if agent_config.system_instructions:
-            messages.append({
-                "role": "system",
-                "content": agent_config.system_instructions
-            })
+            messages.append({"role": "system", "content": agent_config.system_instructions})
 
         # Add conversation history
         messages.extend(history)
@@ -448,9 +443,11 @@ class ChatWebSocketHandler:
             block_type=ContentBlockType.ASSISTANT_TEXT,
             author=ContentBlockAuthor.ASSISTANT,
             content={"text": ""},
-            metadata={"streaming": True}
+            metadata={"streaming": True},
         )
-        print(f"[SIMPLE RESPONSE] Created assistant_text block {assistant_block.id} (seq: {assistant_block.sequence_number})")
+        print(
+            f"[SIMPLE RESPONSE] Created assistant_text block {assistant_block.id} (seq: {assistant_block.sequence_number})"
+        )
 
         # Update task registry with block ID
         existing_task = await self.task_registry.get_task(session_id)
@@ -483,20 +480,23 @@ class ChatWebSocketHandler:
                     block.content = {"text": content_holder["content"]}
                     block.block_metadata = {
                         "streaming": False,
-                        "cancelled": content_holder["cancelled"]
+                        "cancelled": content_holder["cancelled"],
                     }
                     await self._safe_commit()
-                    print(f"[FINALIZATION] Block {block.id} finalized with {len(content_holder['content'])} chars")
+                    print(
+                        f"[FINALIZATION] Block {block.id} finalized with {len(content_holder['content'])} chars"
+                    )
             except Exception as e:
                 print(f"[FINALIZATION] Error finalizing block: {e}")
                 import traceback
+
                 traceback.print_exc()
 
         # Register with streaming manager
         await streaming_manager.register_stream(
             session_id=session_id,
             message_id=assistant_block.id,  # Using block_id now
-            cleanup_callback=finalize_block
+            cleanup_callback=finalize_block,
         )
 
         # Initialize stream state for reconnection support
@@ -505,33 +505,36 @@ class ChatWebSocketHandler:
             session_id=session_id,
             accumulated_content="",
             streaming=True,
-            sequence_number=assistant_block.sequence_number
+            sequence_number=assistant_block.sequence_number,
         )
         print(f"[SIMPLE RESPONSE] Initialized stream state for block {assistant_block.id}")
 
         try:
             # Send assistant_text_start event
-            await self.websocket.send_json({
-                "type": "assistant_text_start",
-                "block_id": assistant_block.id,
-                "sequence_number": assistant_block.sequence_number
-            })
-        except:
-            print(f"[SIMPLE RESPONSE] WebSocket disconnected at start, continuing...")
+            await self.websocket.send_json(
+                {
+                    "type": "assistant_text_start",
+                    "block_id": assistant_block.id,
+                    "sequence_number": assistant_block.sequence_number,
+                }
+            )
+        except Exception:
+            print("[SIMPLE RESPONSE] WebSocket disconnected at start, continuing...")
 
         try:
             async for chunk in llm_provider.generate_stream(messages):
                 # Check for cancellation
                 if self.cancel_event.is_set():
-                    print(f"[SIMPLE RESPONSE] Cancellation detected")
+                    print("[SIMPLE RESPONSE] Cancellation detected")
                     content_holder["cancelled"] = True
                     try:
-                        await self.websocket.send_json({
-                            "type": "cancelled",
-                            "content": "Response cancelled by user"
-                        })
-                    except:
-                        print(f"[SIMPLE RESPONSE] WebSocket disconnected, cannot send cancellation message")
+                        await self.websocket.send_json(
+                            {"type": "cancelled", "content": "Response cancelled by user"}
+                        )
+                    except Exception:
+                        print(
+                            "[SIMPLE RESPONSE] WebSocket disconnected, cannot send cancellation message"
+                        )
                     break
 
                 if isinstance(chunk, str):
@@ -539,7 +542,9 @@ class ChatWebSocketHandler:
                     chunks_since_commit += 1
 
                     # Update streaming manager activity
-                    await streaming_manager.update_activity(session_id, len(content_holder["content"]))
+                    await streaming_manager.update_activity(
+                        session_id, len(content_holder["content"])
+                    )
 
                     # Update stream state for reconnection support
                     if session_id in _stream_states:
@@ -549,7 +554,7 @@ class ChatWebSocketHandler:
                     chunk_data = {
                         "type": "chunk",
                         "content": chunk,
-                        "block_id": assistant_block.id  # Include block_id for frontend tracking
+                        "block_id": assistant_block.id,  # Include block_id for frontend tracking
                     }
 
                     # Legacy buffer (for backward compatibility)
@@ -559,26 +564,29 @@ class ChatWebSocketHandler:
 
                     try:
                         await self.websocket.send_json(chunk_data)
-                    except:
-                        print(f"[SIMPLE RESPONSE] WebSocket disconnected during chunk, continuing...")
+                    except Exception:
+                        print(
+                            "[SIMPLE RESPONSE] WebSocket disconnected during chunk, continuing..."
+                        )
 
                     # BATCHED INCREMENTAL SAVE: Update block content, commit periodically
                     assistant_block.content = {"text": content_holder["content"]}
                     if chunks_since_commit >= CHUNK_COMMIT_INTERVAL:
                         await self._safe_commit()
                         chunks_since_commit = 0
-                        print(f"[SIMPLE RESPONSE] Committed content update ({len(content_holder['content'])} chars)")
+                        print(
+                            f"[SIMPLE RESPONSE] Committed content update ({len(content_holder['content'])} chars)"
+                        )
 
         except asyncio.CancelledError:
-            print(f"[SIMPLE RESPONSE] Task cancelled")
+            print("[SIMPLE RESPONSE] Task cancelled")
             content_holder["cancelled"] = True
             try:
-                await self.websocket.send_json({
-                    "type": "cancelled",
-                    "content": "Response cancelled by user"
-                })
-            except:
-                print(f"[SIMPLE RESPONSE] WebSocket disconnected, cannot send cancellation message")
+                await self.websocket.send_json(
+                    {"type": "cancelled", "content": "Response cancelled by user"}
+                )
+            except Exception:
+                print("[SIMPLE RESPONSE] WebSocket disconnected, cannot send cancellation message")
         finally:
             self.cancel_event = None
 
@@ -586,26 +594,32 @@ class ChatWebSocketHandler:
         assistant_block.content = {"text": content_holder["content"]}
         assistant_block.block_metadata = {
             "streaming": False,
-            "cancelled": content_holder["cancelled"]
+            "cancelled": content_holder["cancelled"],
         }
         await self._safe_commit()
-        print(f"[SIMPLE RESPONSE] Final block saved with ID: {assistant_block.id}, Content length: {len(content_holder['content'])} chars")
+        print(
+            f"[SIMPLE RESPONSE] Final block saved with ID: {assistant_block.id}, Content length: {len(content_holder['content'])} chars"
+        )
 
         # Mark as finalized in streaming manager
         await streaming_manager.mark_finalized(session_id)
 
         # Send completion
         try:
-            await self.websocket.send_json({
-                "type": "assistant_text_end",
-                "block_id": assistant_block.id,
-                "cancelled": content_holder["cancelled"]
-            })
-        except:
-            print(f"[SIMPLE RESPONSE] WebSocket disconnected, cannot send end message")
+            await self.websocket.send_json(
+                {
+                    "type": "assistant_text_end",
+                    "block_id": assistant_block.id,
+                    "cancelled": content_holder["cancelled"],
+                }
+            )
+        except Exception:
+            print("[SIMPLE RESPONSE] WebSocket disconnected, cannot send end message")
 
         # Mark task as completed in registry
-        await self.task_registry.mark_completed(session_id, 'completed' if not content_holder["cancelled"] else 'cancelled')
+        await self.task_registry.mark_completed(
+            session_id, "completed" if not content_holder["cancelled"] else "cancelled"
+        )
 
         # Clear chunk buffer and stream state for this session
         if session_id in _chunk_buffers:
@@ -620,7 +634,7 @@ class ChatWebSocketHandler:
         user_message: str,
         history: list[Dict[str, str]],
         llm_provider,
-        agent_config: AgentConfiguration
+        agent_config: AgentConfiguration,
     ):
         """Handle agent response with tool execution."""
         assistant_block = None
@@ -634,6 +648,7 @@ class ChatWebSocketHandler:
             error_msg = str(e)
             print(f"[AGENT HANDLER] EXCEPTION: {error_msg}")
             import traceback
+
             traceback.print_exc()
 
             # CRITICAL FIX: Update block metadata to mark as not streaming and with error
@@ -657,22 +672,23 @@ class ChatWebSocketHandler:
                         "streaming": False,  # No longer streaming
                         "has_error": True,
                         "error_message": error_msg,
-                        "cancelled": False
+                        "cancelled": False,
                     }
                     await self._safe_commit()
-                    print(f"[AGENT HANDLER] Updated block {assistant_block.id} metadata after exception")
+                    print(
+                        f"[AGENT HANDLER] Updated block {assistant_block.id} metadata after exception"
+                    )
             except Exception as db_error:
                 print(f"[AGENT HANDLER] Failed to update block metadata: {db_error}")
 
-            await self.websocket.send_json({
-                "type": "error",
-                "content": f"Error: {error_msg}"
-            })
-            await self.websocket.send_json({
-                "type": "assistant_text_end",
-                "block_id": assistant_block.id if assistant_block else None,
-                "error": True
-            })
+            await self.websocket.send_json({"type": "error", "content": f"Error: {error_msg}"})
+            await self.websocket.send_json(
+                {
+                    "type": "assistant_text_end",
+                    "block_id": assistant_block.id if assistant_block else None,
+                    "error": True,
+                }
+            )
 
     async def _handle_agent_response_impl(
         self,
@@ -680,7 +696,7 @@ class ChatWebSocketHandler:
         user_message: str,
         history: list[Dict[str, str]],
         llm_provider,
-        agent_config: AgentConfiguration
+        agent_config: AgentConfiguration,
     ):
         """Implementation of agent response handling with incremental saving."""
         global _chunk_buffers
@@ -706,7 +722,7 @@ class ChatWebSocketHandler:
                     session_id,
                     session.project_id,
                     session.environment_type,
-                    session.environment_config or {}
+                    session.environment_config or {},
                 )
 
             # Register enabled sandbox tools
@@ -742,9 +758,11 @@ class ChatWebSocketHandler:
             block_type=ContentBlockType.ASSISTANT_TEXT,
             author=ContentBlockAuthor.ASSISTANT,
             content={"text": ""},
-            metadata={"streaming": True, "agent_mode": True}
+            metadata={"streaming": True, "agent_mode": True},
         )
-        print(f"[AGENT] Created assistant_text block {assistant_block.id} (seq: {assistant_block.sequence_number})")
+        print(
+            f"[AGENT] Created assistant_text block {assistant_block.id} (seq: {assistant_block.sequence_number})"
+        )
 
         # Update task registry with block ID
         existing_task = await self.task_registry.get_task(session_id)
@@ -761,7 +779,9 @@ class ChatWebSocketHandler:
         error_message = None
         cancelled = False
         current_tool_call_block: Optional[ContentBlock] = None  # Track current tool call block
-        current_text_block: ContentBlock = assistant_block  # Track current text block (initially the first one)
+        current_text_block: ContentBlock = (
+            assistant_block  # Track current text block (initially the first one)
+        )
         text_block_has_content = False  # Track if current text block has any content
 
         # Batching for performance: only commit every N chunks or when action completes
@@ -784,20 +804,23 @@ class ChatWebSocketHandler:
                         "streaming": False,
                         "agent_mode": True,
                         "has_error": has_error,
-                        "cancelled": cancelled
+                        "cancelled": cancelled,
                     }
                     await self._safe_commit()
-                    print(f"[FINALIZATION] Agent block {block.id} finalized with {len(assistant_content)} chars")
+                    print(
+                        f"[FINALIZATION] Agent block {block.id} finalized with {len(assistant_content)} chars"
+                    )
             except Exception as e:
                 print(f"[FINALIZATION] Error finalizing agent block: {e}")
                 import traceback
+
                 traceback.print_exc()
 
         # Register with streaming manager
         await streaming_manager.register_stream(
             session_id=session_id,
             message_id=assistant_block.id,  # Using block_id now
-            cleanup_callback=finalize_agent_block
+            cleanup_callback=finalize_agent_block,
         )
 
         # Initialize stream state for reconnection support
@@ -806,17 +829,19 @@ class ChatWebSocketHandler:
             session_id=session_id,
             accumulated_content="",
             streaming=True,
-            sequence_number=assistant_block.sequence_number
+            sequence_number=assistant_block.sequence_number,
         )
         print(f"[AGENT] Initialized stream state for block {assistant_block.id}")
 
         # Send assistant_text_start event
-        await self.websocket.send_json({
-            "type": "assistant_text_start",
-            "block_id": assistant_block.id,
-            "sequence_number": assistant_block.sequence_number
-        })
-        print(f"[AGENT] Starting agent execution loop...")
+        await self.websocket.send_json(
+            {
+                "type": "assistant_text_start",
+                "block_id": assistant_block.id,
+                "sequence_number": assistant_block.sequence_number,
+            }
+        )
+        print("[AGENT] Starting agent execution loop...")
 
         event_count = 0
         try:
@@ -828,11 +853,13 @@ class ChatWebSocketHandler:
                     # Agent was cancelled
                     cancelled = True
                     print(f"[AGENT] Agent cancelled: {event.get('content')}")
-                    await self.websocket.send_json({
-                        "type": "cancelled",
-                        "content": event.get("content", "Response cancelled by user"),
-                        "partial_content": event.get("partial_content")
-                    })
+                    await self.websocket.send_json(
+                        {
+                            "type": "cancelled",
+                            "content": event.get("content", "Response cancelled by user"),
+                            "partial_content": event.get("partial_content"),
+                        }
+                    )
                     break
 
                 elif event_type == "action_streaming":
@@ -845,21 +872,22 @@ class ChatWebSocketHandler:
                     # Track active tool call state for reconnection
                     if session_id in _stream_states:
                         _stream_states[session_id].active_tool_call = ToolCallState(
-                            tool_name=tool_name,
-                            partial_args="",
-                            step=step,
-                            status="streaming"
+                            tool_name=tool_name, partial_args="", step=step, status="streaming"
                         )
 
                     try:
-                        await self.websocket.send_json({
-                            "type": "action_streaming",
-                            "tool": tool_name,
-                            "status": status,
-                            "step": step
-                        })
-                    except:
-                        print(f"[AGENT] WebSocket disconnected during action_streaming, continuing...")
+                        await self.websocket.send_json(
+                            {
+                                "type": "action_streaming",
+                                "tool": tool_name,
+                                "status": status,
+                                "step": step,
+                            }
+                        )
+                    except Exception:
+                        print(
+                            "[AGENT] WebSocket disconnected during action_streaming, continuing..."
+                        )
 
                 elif event_type == "action_args_chunk":
                     # Real-time argument chunks as they're being assembled
@@ -874,14 +902,18 @@ class ChatWebSocketHandler:
                         _stream_states[session_id].active_tool_call.step = step
 
                     try:
-                        await self.websocket.send_json({
-                            "type": "action_args_chunk",
-                            "tool": tool_name,
-                            "partial_args": partial_args,
-                            "step": step
-                        })
-                    except:
-                        print(f"[AGENT] WebSocket disconnected during action_args_chunk, continuing...")
+                        await self.websocket.send_json(
+                            {
+                                "type": "action_args_chunk",
+                                "tool": tool_name,
+                                "partial_args": partial_args,
+                                "step": step,
+                            }
+                        )
+                    except Exception:
+                        print(
+                            "[AGENT] WebSocket disconnected during action_args_chunk, continuing..."
+                        )
 
                 elif event_type == "action":
                     # Agent is using a tool - create TOOL_CALL content block
@@ -897,20 +929,24 @@ class ChatWebSocketHandler:
                         current_text_block.content = {"text": assistant_content}
                         current_text_block.block_metadata = {
                             **current_text_block.block_metadata,
-                            "streaming": False
+                            "streaming": False,
                         }
                         await self._safe_commit()
-                        print(f"[AGENT] Finalized text block {current_text_block.id} with {len(assistant_content)} chars before tool call")
+                        print(
+                            f"[AGENT] Finalized text block {current_text_block.id} with {len(assistant_content)} chars before tool call"
+                        )
 
                         # Send assistant_text_end for this block (intermediate - not final)
                         try:
-                            await self.websocket.send_json({
-                                "type": "assistant_text_end",
-                                "block_id": current_text_block.id,
-                                "is_final": False  # Indicates more content may follow
-                            })
-                        except:
-                            print(f"[AGENT] WebSocket disconnected during assistant_text_end")
+                            await self.websocket.send_json(
+                                {
+                                    "type": "assistant_text_end",
+                                    "block_id": current_text_block.id,
+                                    "is_final": False,  # Indicates more content may follow
+                                }
+                            )
+                        except Exception:
+                            print("[AGENT] WebSocket disconnected during assistant_text_end")
 
                         # Mark that we need a new text block after the tool completes
                         current_text_block = None
@@ -923,7 +959,7 @@ class ChatWebSocketHandler:
                             tool_name=tool_name,
                             partial_args=json.dumps(tool_args),
                             step=event.get("step", 0),
-                            status="running"
+                            status="running",
                         )
 
                     # Create TOOL_CALL content block
@@ -934,20 +970,24 @@ class ChatWebSocketHandler:
                         content={
                             "tool_name": tool_name,
                             "arguments": tool_args,
-                            "status": "pending"
+                            "status": "pending",
                         },
-                        metadata={"step": event.get("step", 0)}
+                        metadata={"step": event.get("step", 0)},
                     )
-                    print(f"[AGENT] Created tool_call block {current_tool_call_block.id} (seq: {current_tool_call_block.sequence_number})")
+                    print(
+                        f"[AGENT] Created tool_call block {current_tool_call_block.id} (seq: {current_tool_call_block.sequence_number})"
+                    )
 
                     try:
                         # Send tool_call_block event
-                        await self.websocket.send_json({
-                            "type": "tool_call_block",
-                            "block": self._block_to_dict(current_tool_call_block)
-                        })
-                    except:
-                        print(f"[AGENT] WebSocket disconnected during action, continuing...")
+                        await self.websocket.send_json(
+                            {
+                                "type": "tool_call_block",
+                                "block": self._block_to_dict(current_tool_call_block),
+                            }
+                        )
+                    except Exception:
+                        print("[AGENT] WebSocket disconnected during action, continuing...")
 
                 elif event_type == "observation":
                     # Tool execution result - create TOOL_RESULT content block
@@ -963,11 +1003,13 @@ class ChatWebSocketHandler:
                     # Get tool name from current tool call block
                     tool_name_for_result = "unknown"
                     if current_tool_call_block:
-                        tool_name_for_result = current_tool_call_block.content.get("tool_name", "unknown")
+                        tool_name_for_result = current_tool_call_block.content.get(
+                            "tool_name", "unknown"
+                        )
                         # Update the TOOL_CALL block status
                         current_tool_call_block.content = {
                             **current_tool_call_block.content,
-                            "status": "complete" if success else "error"
+                            "status": "complete" if success else "error",
                         }
                         await self._safe_commit()
                         chunks_since_commit = 0  # Reset counter after action commit
@@ -981,32 +1023,46 @@ class ChatWebSocketHandler:
                             "tool_name": tool_name_for_result,
                             "result": observation,
                             "success": success,
-                            "error": None if success else observation
+                            "error": None if success else observation,
                         },
-                        parent_block_id=current_tool_call_block.id if current_tool_call_block else None,
-                        metadata=metadata
+                        parent_block_id=(
+                            current_tool_call_block.id if current_tool_call_block else None
+                        ),
+                        metadata=metadata,
                     )
-                    print(f"[AGENT] Created tool_result block {tool_result_block.id} (seq: {tool_result_block.sequence_number})")
+                    print(
+                        f"[AGENT] Created tool_result block {tool_result_block.id} (seq: {tool_result_block.sequence_number})"
+                    )
 
                     try:
                         # Send tool_result_block event
-                        await self.websocket.send_json({
-                            "type": "tool_result_block",
-                            "block": self._block_to_dict(tool_result_block)
-                        })
+                        await self.websocket.send_json(
+                            {
+                                "type": "tool_result_block",
+                                "block": self._block_to_dict(tool_result_block),
+                            }
+                        )
 
                         # Send workspace_files_changed event for file-modifying tools
                         if tool_name_for_result in ("file_write", "edit", "bash") and success:
-                            await self.websocket.send_json({
-                                "type": "workspace_files_changed",
-                                "tool": tool_name_for_result,
-                            })
-                    except:
-                        print(f"[AGENT] WebSocket disconnected during observation, continuing...")
+                            await self.websocket.send_json(
+                                {
+                                    "type": "workspace_files_changed",
+                                    "tool": tool_name_for_result,
+                                }
+                            )
+                    except Exception:
+                        print("[AGENT] WebSocket disconnected during observation, continuing...")
 
                     # CRITICAL FIX: If setup_environment just succeeded, update tool registry
-                    if current_tool_call_block and tool_name_for_result == "setup_environment" and success:
-                        print(f"[AGENT] setup_environment succeeded! Updating tool registry with sandbox tools...")
+                    if (
+                        current_tool_call_block
+                        and tool_name_for_result == "setup_environment"
+                        and success
+                    ):
+                        print(
+                            "[AGENT] setup_environment succeeded! Updating tool registry with sandbox tools..."
+                        )
 
                         # Refresh session from database to get updated environment_type
                         await self.db.refresh(session)
@@ -1018,7 +1074,7 @@ class ChatWebSocketHandler:
                                 container = await container_manager.create_container(
                                     session_id,
                                     session.environment_type,
-                                    session.environment_config or {}
+                                    session.environment_config or {},
                                 )
 
                             # Clear existing tools and register sandbox tools
@@ -1026,27 +1082,33 @@ class ChatWebSocketHandler:
 
                             if "bash" in agent_config.enabled_tools:
                                 tool_registry.register(BashTool(container))
-                                print(f"[AGENT]   ✓ Registered BashTool")
+                                print("[AGENT]   ✓ Registered BashTool")
                             if "file_read" in agent_config.enabled_tools:
-                                tool_registry.register(FileReadTool(container, agent_config.llm_model))
-                                print(f"[AGENT]   ✓ Registered FileReadTool")
+                                tool_registry.register(
+                                    FileReadTool(container, agent_config.llm_model)
+                                )
+                                print("[AGENT]   ✓ Registered FileReadTool")
                             if "file_write" in agent_config.enabled_tools:
                                 tool_registry.register(FileWriteTool(container))
-                                print(f"[AGENT]   ✓ Registered FileWriteTool")
+                                print("[AGENT]   ✓ Registered FileWriteTool")
                             if "search" in agent_config.enabled_tools:
                                 tool_registry.register(SearchTool(container))
-                                print(f"[AGENT]   ✓ Registered SearchTool (unified)")
+                                print("[AGENT]   ✓ Registered SearchTool (unified)")
                             if "edit_lines" in agent_config.enabled_tools:
                                 tool_registry.register(LineEditTool(container))
-                                print(f"[AGENT]   ✓ Registered LineEditTool")
+                                print("[AGENT]   ✓ Registered LineEditTool")
 
                             # Always re-register ThinkTool
                             tool_registry.register(ThinkTool())
-                            print(f"[AGENT]   ✓ Registered ThinkTool")
+                            print("[AGENT]   ✓ Registered ThinkTool")
 
-                            print(f"[AGENT] Tool registry updated! Now has {len(tool_registry._tools)} tools")
+                            print(
+                                f"[AGENT] Tool registry updated! Now has {len(tool_registry._tools)} tools"
+                            )
                         else:
-                            print(f"[AGENT] WARNING: setup_environment succeeded but session.environment_type is still None")
+                            print(
+                                "[AGENT] WARNING: setup_environment succeeded but session.environment_type is still None"
+                            )
 
                     # Reset for next action
                     current_tool_call_block = None
@@ -1062,27 +1124,33 @@ class ChatWebSocketHandler:
                             block_type=ContentBlockType.ASSISTANT_TEXT,
                             author=ContentBlockAuthor.ASSISTANT,
                             content={"text": ""},
-                            metadata={"streaming": True, "agent_mode": True}
+                            metadata={"streaming": True, "agent_mode": True},
                         )
                         assistant_content = ""  # Reset content for new block
                         text_block_has_content = False
-                        print(f"[AGENT] Created NEW text block {current_text_block.id} (seq: {current_text_block.sequence_number}) after tool")
+                        print(
+                            f"[AGENT] Created NEW text block {current_text_block.id} (seq: {current_text_block.sequence_number}) after tool"
+                        )
 
                         # Update stream state for reconnection
                         if session_id in _stream_states:
                             _stream_states[session_id].block_id = current_text_block.id
                             _stream_states[session_id].accumulated_content = ""
-                            _stream_states[session_id].sequence_number = current_text_block.sequence_number
+                            _stream_states[session_id].sequence_number = (
+                                current_text_block.sequence_number
+                            )
 
                         # Send assistant_text_start for new block
                         try:
-                            await self.websocket.send_json({
-                                "type": "assistant_text_start",
-                                "block_id": current_text_block.id,
-                                "sequence_number": current_text_block.sequence_number
-                            })
-                        except:
-                            print(f"[AGENT] WebSocket disconnected during assistant_text_start")
+                            await self.websocket.send_json(
+                                {
+                                    "type": "assistant_text_start",
+                                    "block_id": current_text_block.id,
+                                    "sequence_number": current_text_block.sequence_number,
+                                }
+                            )
+                        except Exception:
+                            print("[AGENT] WebSocket disconnected during assistant_text_start")
 
                     assistant_content += chunk
                     text_block_has_content = True
@@ -1099,7 +1167,7 @@ class ChatWebSocketHandler:
                     chunk_data = {
                         "type": "chunk",
                         "content": chunk,
-                        "block_id": current_text_block.id  # Use current text block ID
+                        "block_id": current_text_block.id,  # Use current text block ID
                     }
 
                     # Legacy buffer (for backward compatibility)
@@ -1110,8 +1178,8 @@ class ChatWebSocketHandler:
                     # Forward chunk to frontend if WebSocket connected
                     try:
                         await self.websocket.send_json(chunk_data)
-                    except:
-                        print(f"[AGENT] WebSocket disconnected during chunk, continuing...")
+                    except Exception:
+                        print("[AGENT] WebSocket disconnected during chunk, continuing...")
 
                     # Batched commit: only commit periodically
                     if current_text_block:
@@ -1119,7 +1187,9 @@ class ChatWebSocketHandler:
                         if chunks_since_commit >= CHUNK_COMMIT_INTERVAL:
                             await self._safe_commit()
                             chunks_since_commit = 0
-                            print(f"[AGENT] Committed content update ({len(assistant_content)} chars)")
+                            print(
+                                f"[AGENT] Committed content update ({len(assistant_content)} chars)"
+                            )
 
                 elif event_type == "final_answer":
                     # Agent has completed the task (legacy - now using chunks)
@@ -1132,20 +1202,24 @@ class ChatWebSocketHandler:
                             block_type=ContentBlockType.ASSISTANT_TEXT,
                             author=ContentBlockAuthor.ASSISTANT,
                             content={"text": ""},
-                            metadata={"streaming": True, "agent_mode": True}
+                            metadata={"streaming": True, "agent_mode": True},
                         )
                         assistant_content = ""
                         text_block_has_content = False
-                        print(f"[AGENT] Created NEW text block {current_text_block.id} for final_answer")
+                        print(
+                            f"[AGENT] Created NEW text block {current_text_block.id} for final_answer"
+                        )
 
                         try:
-                            await self.websocket.send_json({
-                                "type": "assistant_text_start",
-                                "block_id": current_text_block.id,
-                                "sequence_number": current_text_block.sequence_number
-                            })
-                        except:
-                            print(f"[AGENT] WebSocket disconnected during assistant_text_start")
+                            await self.websocket.send_json(
+                                {
+                                    "type": "assistant_text_start",
+                                    "block_id": current_text_block.id,
+                                    "sequence_number": current_text_block.sequence_number,
+                                }
+                            )
+                        except Exception:
+                            print("[AGENT] WebSocket disconnected during assistant_text_start")
 
                     assistant_content += answer
                     text_block_has_content = True
@@ -1157,13 +1231,11 @@ class ChatWebSocketHandler:
                         _stream_states[session_id].accumulated_content = assistant_content
 
                     try:
-                        await self.websocket.send_json({
-                            "type": "chunk",
-                            "content": answer,
-                            "block_id": current_text_block.id
-                        })
-                    except:
-                        print(f"[AGENT] WebSocket disconnected during final_answer, continuing...")
+                        await self.websocket.send_json(
+                            {"type": "chunk", "content": answer, "block_id": current_text_block.id}
+                        )
+                    except Exception:
+                        print("[AGENT] WebSocket disconnected during final_answer, continuing...")
 
                     # Batched commit: only commit periodically
                     if current_text_block:
@@ -1171,7 +1243,9 @@ class ChatWebSocketHandler:
                         if chunks_since_commit >= CHUNK_COMMIT_INTERVAL:
                             await self._safe_commit()
                             chunks_since_commit = 0
-                            print(f"[AGENT] Committed content update ({len(assistant_content)} chars)")
+                            print(
+                                f"[AGENT] Committed content update ({len(assistant_content)} chars)"
+                            )
 
                 elif event_type == "error":
                     # Error occurred
@@ -1180,26 +1254,24 @@ class ChatWebSocketHandler:
                     print(f"[AGENT] ERROR: {error_message}")
 
                     try:
-                        await self.websocket.send_json({
-                            "type": "error",
-                            "content": error_message
-                        })
-                    except:
-                        print(f"[AGENT] WebSocket disconnected during error, message saved in database")
+                        await self.websocket.send_json({"type": "error", "content": error_message})
+                    except Exception:
+                        print(
+                            "[AGENT] WebSocket disconnected during error, message saved in database"
+                        )
 
                     break
 
         except asyncio.CancelledError:
             # Task was cancelled
             cancelled = True
-            print(f"[AGENT] Task cancelled via CancelledError")
+            print("[AGENT] Task cancelled via CancelledError")
             try:
-                await self.websocket.send_json({
-                    "type": "cancelled",
-                    "content": "Response cancelled by user"
-                })
-            except:
-                print(f"[AGENT] WebSocket disconnected, cannot send cancellation message")
+                await self.websocket.send_json(
+                    {"type": "cancelled", "content": "Response cancelled by user"}
+                )
+            except Exception:
+                print("[AGENT] WebSocket disconnected, cannot send cancellation message")
         finally:
             self.cancel_event = None
 
@@ -1215,22 +1287,26 @@ class ChatWebSocketHandler:
                 "streaming": False,
                 "agent_mode": True,
                 "has_error": has_error,
-                "cancelled": cancelled
+                "cancelled": cancelled,
             }
             await self._safe_commit()
-            print(f"[AGENT] Final text block saved with ID: {current_text_block.id}, Content length: {len(assistant_content)} chars")
+            print(
+                f"[AGENT] Final text block saved with ID: {current_text_block.id}, Content length: {len(assistant_content)} chars"
+            )
 
             # Send completion for this block (final - no more content)
             try:
-                await self.websocket.send_json({
-                    "type": "assistant_text_end",
-                    "block_id": current_text_block.id,
-                    "has_error": has_error,
-                    "cancelled": cancelled,
-                    "is_final": True  # Indicates this is the last text block
-                })
-            except:
-                print(f"[AGENT] WebSocket disconnected, cannot send end message")
+                await self.websocket.send_json(
+                    {
+                        "type": "assistant_text_end",
+                        "block_id": current_text_block.id,
+                        "has_error": has_error,
+                        "cancelled": cancelled,
+                        "is_final": True,  # Indicates this is the last text block
+                    }
+                )
+            except Exception:
+                print("[AGENT] WebSocket disconnected, cannot send end message")
         elif current_text_block and not text_block_has_content:
             # Empty text block - delete it
             await self.db.delete(current_text_block)
@@ -1239,29 +1315,25 @@ class ChatWebSocketHandler:
 
             # Still send final signal
             try:
-                await self.websocket.send_json({
-                    "type": "agent_complete",
-                    "has_error": has_error,
-                    "cancelled": cancelled
-                })
-            except:
-                print(f"[AGENT] WebSocket disconnected, cannot send agent_complete")
+                await self.websocket.send_json(
+                    {"type": "agent_complete", "has_error": has_error, "cancelled": cancelled}
+                )
+            except Exception:
+                print("[AGENT] WebSocket disconnected, cannot send agent_complete")
         elif current_text_block is None:
             # No text block at all (tools ran without any text after last finalization)
             try:
-                await self.websocket.send_json({
-                    "type": "agent_complete",
-                    "has_error": has_error,
-                    "cancelled": cancelled
-                })
-            except:
-                print(f"[AGENT] WebSocket disconnected, cannot send agent_complete")
+                await self.websocket.send_json(
+                    {"type": "agent_complete", "has_error": has_error, "cancelled": cancelled}
+                )
+            except Exception:
+                print("[AGENT] WebSocket disconnected, cannot send agent_complete")
 
         # Mark as finalized in streaming manager
         await streaming_manager.mark_finalized(session_id)
 
         # Mark task as completed in registry
-        status = 'cancelled' if cancelled else ('error' if has_error else 'completed')
+        status = "cancelled" if cancelled else ("error" if has_error else "completed")
         await self.task_registry.mark_completed(session_id, status)
         print(f"[TASK REGISTRY] Marked task as {status} for session {session_id}")
 
@@ -1277,9 +1349,7 @@ class ChatWebSocketHandler:
         return assistant_block if assistant_block else current_text_block
 
     async def _get_conversation_history(
-        self,
-        session_id: str,
-        model_name: str
+        self, session_id: str, model_name: str
     ) -> list[Dict[str, str | Any]]:
         """
         Get conversation history for a session using ContentBlocks.
@@ -1307,34 +1377,35 @@ class ChatWebSocketHandler:
         for block in blocks:
             if block.block_type == ContentBlockType.USER_TEXT:
                 # User message
-                text = block.content.get("text", "") if isinstance(block.content, dict) else str(block.content)
-                history.append({
-                    "role": "user",
-                    "content": text
-                })
+                text = (
+                    block.content.get("text", "")
+                    if isinstance(block.content, dict)
+                    else str(block.content)
+                )
+                history.append({"role": "user", "content": text})
 
             elif block.block_type == ContentBlockType.ASSISTANT_TEXT:
                 # Assistant message
-                text = block.content.get("text", "") if isinstance(block.content, dict) else str(block.content)
+                text = (
+                    block.content.get("text", "")
+                    if isinstance(block.content, dict)
+                    else str(block.content)
+                )
                 if text:  # Only add non-empty assistant messages
-                    history.append({
-                        "role": "assistant",
-                        "content": text
-                    })
+                    history.append({"role": "assistant", "content": text})
 
             elif block.block_type == ContentBlockType.TOOL_CALL:
                 # Tool call - add as assistant message with function_call
                 tool_name = block.content.get("tool_name", "unknown")
                 tool_args = block.content.get("arguments", {})
                 args_str = json.dumps(tool_args) if isinstance(tool_args, dict) else str(tool_args)
-                history.append({
-                    "role": "assistant",
-                    "content": f"Using tool: {tool_name}",
-                    "function_call": {
-                        "name": tool_name,
-                        "arguments": args_str
+                history.append(
+                    {
+                        "role": "assistant",
+                        "content": f"Using tool: {tool_name}",
+                        "function_call": {"name": tool_name, "arguments": args_str},
                     }
-                })
+                )
 
             elif block.block_type == ContentBlockType.TOOL_RESULT:
                 # Tool result - add as user message (function result)
@@ -1344,47 +1415,37 @@ class ChatWebSocketHandler:
                 metadata = block.block_metadata or {}
 
                 # Check if this is an image result for a VLM
-                has_image = (
-                    metadata.get('type') == 'image' and
-                    metadata.get('image_data')
-                )
+                has_image = metadata.get("type") == "image" and metadata.get("image_data")
 
                 if has_image and is_vlm:
                     # Vision model: Use multi-content format with image
-                    image_data = metadata['image_data']
+                    image_data = metadata["image_data"]
                     text_content = f"Tool result ({tool_name}): {result_text}"
 
-                    history.append({
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": text_content
-                            },
-                            {
-                                "type": "image_url",
-                                "image_url": {
-                                    "url": image_data  # data URI format: data:image/png;base64,...
-                                }
-                            }
-                        ]
-                    })
+                    history.append(
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "text", "text": text_content},
+                                {
+                                    "type": "image_url",
+                                    "image_url": {
+                                        "url": image_data  # data URI format: data:image/png;base64,...
+                                    },
+                                },
+                            ],
+                        }
+                    )
                 else:
                     # Non-vision model or text-only result: Use text format
                     status_text = "Success" if success else "Error"
                     output_content = f"Tool result ({tool_name}) [{status_text}]: {result_text}"
-                    history.append({
-                        "role": "user",
-                        "content": output_content
-                    })
+                    history.append({"role": "user", "content": output_content})
 
         return history
 
     async def _generate_title_if_needed(
-        self,
-        session_id: str,
-        user_message: str,
-        agent_config: AgentConfiguration
+        self, session_id: str, user_message: str, agent_config: AgentConfiguration
     ):
         """
         Generate a title for the chat session based on the first user message.
@@ -1407,20 +1468,24 @@ class ChatWebSocketHandler:
                         return
 
                     # Only generate if title was auto-generated flag is 'N'
-                    if session.title_auto_generated != 'N':
-                        print(f"[TITLE GEN] Skipping - title already auto-generated for session {session_id}")
+                    if session.title_auto_generated != "N":
+                        print(
+                            f"[TITLE GEN] Skipping - title already auto-generated for session {session_id}"
+                        )
                         return
 
                     # Check if this is the first user message
                     user_block_count_query = select(ContentBlock).where(
                         ContentBlock.chat_session_id == session_id,
-                        ContentBlock.block_type == ContentBlockType.USER_TEXT
+                        ContentBlock.block_type == ContentBlockType.USER_TEXT,
                     )
                     user_block_count_result = await title_db.execute(user_block_count_query)
                     user_blocks = user_block_count_result.scalars().all()
 
                     if len(user_blocks) != 1:
-                        print(f"[TITLE GEN] Skipping - not first message (count: {len(user_blocks)})")
+                        print(
+                            f"[TITLE GEN] Skipping - not first message (count: {len(user_blocks)})"
+                        )
                         return
 
                     print(f"[TITLE GEN] Generating title for session {session_id}")
@@ -1441,25 +1506,31 @@ class ChatWebSocketHandler:
 Respond with ONLY the title, nothing else. The title should capture the main topic or intent."""
 
                     title_response = ""
-                    async for chunk in llm_provider.generate_stream([{"role": "user", "content": prompt}]):
+                    async for chunk in llm_provider.generate_stream(
+                        [{"role": "user", "content": prompt}]
+                    ):
                         title_response += chunk
 
                     # Clean up title (remove quotes, trim whitespace)
-                    generated_title = title_response.strip().strip('"').strip("'")[:100]  # Max 100 chars
+                    generated_title = (
+                        title_response.strip().strip('"').strip("'")[:100]
+                    )  # Max 100 chars
 
                     # Update session with generated title
                     session.name = generated_title
-                    session.title_auto_generated = 'Y'
+                    session.title_auto_generated = "Y"
                     await title_db.commit()
 
                     print(f"[TITLE GEN] Generated title: '{generated_title}'")
 
                     # Send title update to client via WebSocket
-                    await self.websocket.send_json({
-                        "type": "title_updated",
-                        "session_id": session_id,
-                        "title": generated_title
-                    })
+                    await self.websocket.send_json(
+                        {
+                            "type": "title_updated",
+                            "session_id": session_id,
+                            "title": generated_title,
+                        }
+                    )
 
                 except Exception as inner_e:
                     await title_db.rollback()
@@ -1468,6 +1539,7 @@ Respond with ONLY the title, nothing else. The title should capture the main top
         except Exception as e:
             print(f"[TITLE GEN] Error generating title: {str(e)}")
             import traceback
+
             traceback.print_exc()
 
     async def _attach_to_existing_stream(self, session_id: str, existing_task):
@@ -1480,16 +1552,22 @@ Respond with ONLY the title, nothing else. The title should capture the main top
         # This allows the new WebSocket connection to control the running task
         self.cancel_event = existing_task.cancel_event
         self.current_agent_task = existing_task.task
-        print(f"[STREAM SYNC] Attached cancel_event: {self.cancel_event is not None}, task: {self.current_agent_task is not None}")
+        print(
+            f"[STREAM SYNC] Attached cancel_event: {self.cancel_event is not None}, task: {self.current_agent_task is not None}"
+        )
 
         ws_connected = True
 
         # Check if we have stream state for this session
         if session_id in _stream_states:
             stream_state = _stream_states[session_id]
-            print(f"[STREAM SYNC] Found stream state for block {stream_state.block_id}, content length: {len(stream_state.accumulated_content)}")
+            print(
+                f"[STREAM SYNC] Found stream state for block {stream_state.block_id}, content length: {len(stream_state.accumulated_content)}"
+            )
             if stream_state.active_tool_call:
-                print(f"[STREAM SYNC] Active tool call: {stream_state.active_tool_call.tool_name} (status: {stream_state.active_tool_call.status})")
+                print(
+                    f"[STREAM SYNC] Active tool call: {stream_state.active_tool_call.tool_name} (status: {stream_state.active_tool_call.status})"
+                )
 
             # Build stream_sync payload
             sync_payload = {
@@ -1497,7 +1575,7 @@ Respond with ONLY the title, nothing else. The title should capture the main top
                 "block_id": stream_state.block_id,
                 "accumulated_content": stream_state.accumulated_content,
                 "streaming": stream_state.streaming,
-                "sequence_number": stream_state.sequence_number
+                "sequence_number": stream_state.sequence_number,
             }
 
             # Include active tool call state if present
@@ -1506,7 +1584,7 @@ Respond with ONLY the title, nothing else. The title should capture the main top
                     "tool_name": stream_state.active_tool_call.tool_name,
                     "partial_args": stream_state.active_tool_call.partial_args,
                     "step": stream_state.active_tool_call.step,
-                    "status": stream_state.active_tool_call.status
+                    "status": stream_state.active_tool_call.status,
                 }
 
             # Send stream_sync event with full state
@@ -1514,18 +1592,17 @@ Respond with ONLY the title, nothing else. The title should capture the main top
                 await self.websocket.send_json(sync_payload)
                 print(f"[STREAM SYNC] Sent stream_sync event for block {stream_state.block_id}")
             except WebSocketDisconnect:
-                print(f"[STREAM SYNC] WebSocket already disconnected")
+                print("[STREAM SYNC] WebSocket already disconnected")
                 return
         else:
             # Fallback to legacy resuming_stream for backward compatibility
-            print(f"[STREAM SYNC] No stream state found, using legacy resuming_stream")
+            print("[STREAM SYNC] No stream state found, using legacy resuming_stream")
             try:
-                await self.websocket.send_json({
-                    "type": "resuming_stream",
-                    "message_id": existing_task.message_id
-                })
+                await self.websocket.send_json(
+                    {"type": "resuming_stream", "message_id": existing_task.message_id}
+                )
             except WebSocketDisconnect:
-                print(f"[STREAM SYNC] WebSocket already disconnected")
+                print("[STREAM SYNC] WebSocket already disconnected")
                 return
 
             # Send buffered chunks if available (legacy fallback)
@@ -1541,20 +1618,28 @@ Respond with ONLY the title, nothing else. The title should capture the main top
                         await self.websocket.send_json(chunk)
                         await asyncio.sleep(0.001)
                     except (WebSocketDisconnect, ConnectionError, Exception) as e:
-                        print(f"[STREAM SYNC] WebSocket disconnected while sending buffered chunks: {e}")
+                        print(
+                            f"[STREAM SYNC] WebSocket disconnected while sending buffered chunks: {e}"
+                        )
                         ws_connected = False
                         break
 
         # Track content length and tool state for detecting changes
         initial_state = _stream_states.get(session_id, StreamState("", session_id))
         last_content_length = len(initial_state.accumulated_content)
-        last_tool_args = initial_state.active_tool_call.partial_args if initial_state.active_tool_call else None
-        last_tool_status = initial_state.active_tool_call.status if initial_state.active_tool_call else None
-        last_tool_name = initial_state.active_tool_call.tool_name if initial_state.active_tool_call else None
+        last_tool_args = (
+            initial_state.active_tool_call.partial_args if initial_state.active_tool_call else None
+        )
+        last_tool_status = (
+            initial_state.active_tool_call.status if initial_state.active_tool_call else None
+        )
+        last_tool_name = (
+            initial_state.active_tool_call.tool_name if initial_state.active_tool_call else None
+        )
         tool_was_active = initial_state.active_tool_call is not None
 
         # Keep WebSocket open and forward new chunks/tool events as they arrive
-        while ws_connected and existing_task.status == 'running' and not existing_task.task.done():
+        while ws_connected and existing_task.status == "running" and not existing_task.task.done():
             try:
                 # Check for new content in stream state
                 if session_id in _stream_states:
@@ -1566,14 +1651,18 @@ Respond with ONLY the title, nothing else. The title should capture the main top
                         new_content = current_state.accumulated_content[last_content_length:]
                         if new_content:
                             try:
-                                await self.websocket.send_json({
-                                    "type": "chunk",
-                                    "content": new_content,
-                                    "block_id": current_state.block_id
-                                })
+                                await self.websocket.send_json(
+                                    {
+                                        "type": "chunk",
+                                        "content": new_content,
+                                        "block_id": current_state.block_id,
+                                    }
+                                )
                                 last_content_length = current_length
                             except (WebSocketDisconnect, ConnectionError, Exception) as e:
-                                print(f"[STREAM SYNC] WebSocket disconnected while forwarding chunk: {e}")
+                                print(
+                                    f"[STREAM SYNC] WebSocket disconnected while forwarding chunk: {e}"
+                                )
                                 ws_connected = False
                                 break
 
@@ -1584,15 +1673,19 @@ Respond with ONLY the title, nothing else. The title should capture the main top
                         if current_tool.partial_args != last_tool_args:
                             # Args changed - send action_args_chunk
                             try:
-                                await self.websocket.send_json({
-                                    "type": "action_args_chunk",
-                                    "tool": current_tool.tool_name,
-                                    "partial_args": current_tool.partial_args,
-                                    "step": current_tool.step
-                                })
+                                await self.websocket.send_json(
+                                    {
+                                        "type": "action_args_chunk",
+                                        "tool": current_tool.tool_name,
+                                        "partial_args": current_tool.partial_args,
+                                        "step": current_tool.step,
+                                    }
+                                )
                                 last_tool_args = current_tool.partial_args
                             except (WebSocketDisconnect, ConnectionError, Exception) as e:
-                                print(f"[STREAM SYNC] WebSocket disconnected while forwarding tool args: {e}")
+                                print(
+                                    f"[STREAM SYNC] WebSocket disconnected while forwarding tool args: {e}"
+                                )
                                 ws_connected = False
                                 break
 
@@ -1605,16 +1698,20 @@ Respond with ONLY the title, nothing else. The title should capture the main top
                                     if current_tool.partial_args:
                                         try:
                                             args = json.loads(current_tool.partial_args)
-                                        except:
+                                        except Exception:
                                             pass
-                                    await self.websocket.send_json({
-                                        "type": "action",
-                                        "tool": current_tool.tool_name,
-                                        "args": args,
-                                        "step": current_tool.step
-                                    })
+                                    await self.websocket.send_json(
+                                        {
+                                            "type": "action",
+                                            "tool": current_tool.tool_name,
+                                            "args": args,
+                                            "step": current_tool.step,
+                                        }
+                                    )
                                 except (WebSocketDisconnect, ConnectionError, Exception) as e:
-                                    print(f"[STREAM SYNC] WebSocket disconnected while forwarding action: {e}")
+                                    print(
+                                        f"[STREAM SYNC] WebSocket disconnected while forwarding action: {e}"
+                                    )
                                     ws_connected = False
                                     break
                             last_tool_status = current_tool.status
@@ -1625,14 +1722,15 @@ Respond with ONLY the title, nothing else. The title should capture the main top
                     elif tool_was_active:
                         # Tool was active but now cleared - tool completed
                         # Trigger a refetch on the frontend by sending a hint
-                        print(f"[STREAM SYNC] Tool completed, notifying frontend to refetch blocks")
+                        print("[STREAM SYNC] Tool completed, notifying frontend to refetch blocks")
                         try:
-                            await self.websocket.send_json({
-                                "type": "tool_completed",
-                                "tool": last_tool_name
-                            })
+                            await self.websocket.send_json(
+                                {"type": "tool_completed", "tool": last_tool_name}
+                            )
                         except (WebSocketDisconnect, ConnectionError, Exception) as e:
-                            print(f"[STREAM SYNC] WebSocket disconnected while sending tool_completed: {e}")
+                            print(
+                                f"[STREAM SYNC] WebSocket disconnected while sending tool_completed: {e}"
+                            )
                             ws_connected = False
                             break
                         tool_was_active = False
@@ -1643,7 +1741,7 @@ Respond with ONLY the title, nothing else. The title should capture the main top
                 await asyncio.sleep(0.03)  # Check for new content every 30ms
 
             except WebSocketDisconnect:
-                print(f"[STREAM SYNC] WebSocket disconnected from resumed stream")
+                print("[STREAM SYNC] WebSocket disconnected from resumed stream")
                 ws_connected = False
                 break
             except Exception as e:
@@ -1654,25 +1752,26 @@ Respond with ONLY the title, nothing else. The title should capture the main top
         # If task completed successfully, send completion message
         if ws_connected and existing_task.task.done():
             try:
-                if existing_task.status == 'completed':
+                if existing_task.status == "completed":
                     # Get the block_id from stream state or task
                     block_id = existing_task.message_id
                     if session_id in _stream_states:
                         block_id = _stream_states[session_id].block_id
 
-                    print(f"[STREAM SYNC] Task completed, sending assistant_text_end for block {block_id}")
-                    await self.websocket.send_json({
-                        "type": "assistant_text_end",
-                        "block_id": block_id,
-                        "cancelled": False
-                    })
-                elif existing_task.status == 'cancelled':
-                    print(f"[STREAM SYNC] Task was cancelled")
-                    await self.websocket.send_json({
-                        "type": "cancelled",
-                        "content": "Response was cancelled"
-                    })
-            except:
-                print(f"[STREAM SYNC] Failed to send completion message")
+                    print(
+                        f"[STREAM SYNC] Task completed, sending assistant_text_end for block {block_id}"
+                    )
+                    await self.websocket.send_json(
+                        {"type": "assistant_text_end", "block_id": block_id, "cancelled": False}
+                    )
+                elif existing_task.status == "cancelled":
+                    print("[STREAM SYNC] Task was cancelled")
+                    await self.websocket.send_json(
+                        {"type": "cancelled", "content": "Response was cancelled"}
+                    )
+            except Exception:
+                print("[STREAM SYNC] Failed to send completion message")
 
-        print(f"[STREAM SYNC] Exiting _attach_to_existing_stream (ws_connected={ws_connected}, task_status={existing_task.status})")
+        print(
+            f"[STREAM SYNC] Exiting _attach_to_existing_stream (ws_connected={ws_connected}, task_status={existing_task.status})"
+        )

@@ -37,12 +37,12 @@ class LocalStorage(WorkspaceStorage):
             Corresponding host filesystem path
         """
         # Remove leading '/workspace' from container path
-        if container_path.startswith('/workspace/'):
-            relative_path = container_path[len('/workspace/'):]
-        elif container_path.startswith('/workspace'):
-            relative_path = container_path[len('/workspace'):]
+        if container_path.startswith("/workspace/"):
+            relative_path = container_path[len("/workspace/") :]
+        elif container_path.startswith("/workspace"):
+            relative_path = container_path[len("/workspace") :]
         else:
-            relative_path = container_path.lstrip('/')
+            relative_path = container_path.lstrip("/")
 
         workspace = self._get_workspace_path(session_id)
         return workspace / relative_path
@@ -71,7 +71,9 @@ class LocalStorage(WorkspaceStorage):
 
         return await asyncio.to_thread(host_path.read_bytes)
 
-    async def list_files(self, session_id: str, container_path: str = "/workspace") -> List[FileInfo]:
+    async def list_files(
+        self, session_id: str, container_path: str = "/workspace"
+    ) -> List[FileInfo]:
         """List files in a directory."""
         host_path = self._get_host_path(session_id, container_path)
 
@@ -87,11 +89,7 @@ class LocalStorage(WorkspaceStorage):
                 is_dir = item.is_dir()
                 size = 0 if is_dir else item.stat().st_size
 
-                files.append(FileInfo(
-                    path=container_item_path,
-                    size=size,
-                    is_dir=is_dir
-                ))
+                files.append(FileInfo(path=container_item_path, size=size, is_dir=is_dir))
             return files
 
         return await asyncio.to_thread(_list_files)
@@ -135,10 +133,7 @@ class LocalStorage(WorkspaceStorage):
             await asyncio.to_thread(shutil.rmtree, workspace)
 
     async def copy_to_workspace(
-        self,
-        session_id: str,
-        source_path: Path,
-        dest_container_path: str
+        self, session_id: str, source_path: Path, dest_container_path: str
     ) -> None:
         """Copy files from host to workspace."""
         dest_host_path = self._get_host_path(session_id, dest_container_path)
@@ -168,9 +163,4 @@ class LocalStorage(WorkspaceStorage):
             Docker volume configuration dict
         """
         workspace_path = self._get_workspace_path(session_id)
-        return {
-            str(workspace_path.absolute()): {
-                "bind": "/workspace",
-                "mode": "rw"
-            }
-        }
+        return {str(workspace_path.absolute()): {"bind": "/workspace", "mode": "rw"}}

@@ -1,6 +1,5 @@
 """S3/MinIO storage backend for cloud deployment."""
 
-import io
 import asyncio
 from pathlib import Path
 from typing import List, Optional
@@ -8,6 +7,7 @@ from typing import List, Optional
 try:
     import boto3
     from botocore.exceptions import ClientError
+
     BOTO3_AVAILABLE = True
 except ImportError:
     BOTO3_AVAILABLE = False
@@ -24,7 +24,7 @@ class S3Storage(WorkspaceStorage):
         access_key: Optional[str] = None,
         secret_key: Optional[str] = None,
         endpoint_url: Optional[str] = None,
-        region: str = "us-east-1"
+        region: str = "us-east-1",
     ):
         """
         Initialize S3 storage.
@@ -45,10 +45,12 @@ class S3Storage(WorkspaceStorage):
         # Initialize S3 client
         session_kwargs = {}
         if access_key and secret_key:
-            session_kwargs.update({
-                "aws_access_key_id": access_key,
-                "aws_secret_access_key": secret_key,
-            })
+            session_kwargs.update(
+                {
+                    "aws_access_key_id": access_key,
+                    "aws_secret_access_key": secret_key,
+                }
+            )
 
         client_kwargs = {"region_name": region}
         if endpoint_url:
@@ -64,8 +66,8 @@ class S3Storage(WorkspaceStorage):
         try:
             self.s3_client.head_bucket(Bucket=self.bucket_name)
         except ClientError as e:
-            error_code = e.response['Error']['Code']
-            if error_code == '404':
+            error_code = e.response["Error"]["Code"]
+            if error_code == "404":
                 # Bucket doesn't exist, create it
                 self.s3_client.create_bucket(Bucket=self.bucket_name)
 
@@ -81,12 +83,12 @@ class S3Storage(WorkspaceStorage):
             S3 object key
         """
         # Remove leading '/workspace' from container path
-        if container_path.startswith('/workspace/'):
-            relative_path = container_path[len('/workspace/'):]
-        elif container_path.startswith('/workspace'):
-            relative_path = container_path[len('/workspace'):]
+        if container_path.startswith("/workspace/"):
+            relative_path = container_path[len("/workspace/") :]
+        elif container_path.startswith("/workspace"):
+            relative_path = container_path[len("/workspace") :]
         else:
-            relative_path = container_path.lstrip('/')
+            relative_path = container_path.lstrip("/")
 
         return f"workspaces/{session_id}/{relative_path}"
 
@@ -96,11 +98,7 @@ class S3Storage(WorkspaceStorage):
             s3_key = self._get_s3_key(session_id, container_path)
 
             def _upload():
-                self.s3_client.put_object(
-                    Bucket=self.bucket_name,
-                    Key=s3_key,
-                    Body=content
-                )
+                self.s3_client.put_object(Bucket=self.bucket_name, Key=s3_key, Body=content)
                 return True
 
             return await asyncio.to_thread(_upload)
@@ -114,43 +112,42 @@ class S3Storage(WorkspaceStorage):
 
         def _download():
             try:
-                response = self.s3_client.get_object(
-                    Bucket=self.bucket_name,
-                    Key=s3_key
-                )
-                return response['Body'].read()
+                response = self.s3_client.get_object(Bucket=self.bucket_name, Key=s3_key)
+                return response["Body"].read()
             except ClientError as e:
-                if e.response['Error']['Code'] == 'NoSuchKey':
+                if e.response["Error"]["Code"] == "NoSuchKey":
                     raise FileNotFoundError(f"File not found: {container_path}")
                 raise
 
         return await asyncio.to_thread(_download)
 
-    async def list_files(self, session_id: str, container_path: str = "/workspace") -> List[FileInfo]:
+    async def list_files(
+        self, session_id: str, container_path: str = "/workspace"
+    ) -> List[FileInfo]:
         """List files in S3."""
         prefix = self._get_s3_key(session_id, container_path)
-        if not prefix.endswith('/'):
-            prefix += '/'
+        if not prefix.endswith("/"):
+            prefix += "/"
 
         def _list():
             files = []
-            paginator = self.s3_client.get_paginator('list_objects_v2')
+            paginator = self.s3_client.get_paginator("list_objects_v2")
 
             for page in paginator.paginate(Bucket=self.bucket_name, Prefix=prefix):
-                if 'Contents' not in page:
+                if "Contents" not in page:
                     break
 
-                for obj in page['Contents']:
+                for obj in page["Contents"]:
                     # Convert S3 key back to container path
-                    key = obj['Key']
-                    relative_path = key[len(f"workspaces/{session_id}/"):]
+                    key = obj["Key"]
+                    relative_path = key[len(f"workspaces/{session_id}/") :]
                     container_file_path = f"/workspace/{relative_path}"
 
-                    files.append(FileInfo(
-                        path=container_file_path,
-                        size=obj['Size'],
-                        is_dir=key.endswith('/')
-                    ))
+                    files.append(
+                        FileInfo(
+                            path=container_file_path, size=obj["Size"], is_dir=key.endswith("/")
+                        )
+                    )
 
             return files
 
@@ -163,26 +160,22 @@ class S3Storage(WorkspaceStorage):
 
             def _delete():
                 # Delete the object
-                self.s3_client.delete_object(
-                    Bucket=self.bucket_name,
-                    Key=s3_key
-                )
+                self.s3_client.delete_object(Bucket=self.bucket_name, Key=s3_key)
 
                 # If it's a directory, delete all objects with this prefix
-                if not s3_key.endswith('/'):
-                    s3_key_prefix = s3_key + '/'
+                if not s3_key.endswith("/"):
+                    s3_key_prefix = s3_key + "/"
                 else:
                     s3_key_prefix = s3_key
 
                 # List and delete all objects with this prefix
-                paginator = self.s3_client.get_paginator('list_objects_v2')
+                paginator = self.s3_client.get_paginator("list_objects_v2")
                 for page in paginator.paginate(Bucket=self.bucket_name, Prefix=s3_key_prefix):
-                    if 'Contents' in page:
-                        objects = [{'Key': obj['Key']} for obj in page['Contents']]
+                    if "Contents" in page:
+                        objects = [{"Key": obj["Key"]} for obj in page["Contents"]]
                         if objects:
                             self.s3_client.delete_objects(
-                                Bucket=self.bucket_name,
-                                Delete={'Objects': objects}
+                                Bucket=self.bucket_name, Delete={"Objects": objects}
                             )
 
                 return True
@@ -201,7 +194,7 @@ class S3Storage(WorkspaceStorage):
                 self.s3_client.head_object(Bucket=self.bucket_name, Key=s3_key)
                 return True
             except ClientError as e:
-                if e.response['Error']['Code'] == '404':
+                if e.response["Error"]["Code"] == "404":
                     return False
                 raise
 
@@ -209,52 +202,43 @@ class S3Storage(WorkspaceStorage):
 
     async def create_workspace(self, session_id: str) -> None:
         """Create workspace structure in S3 (create placeholder objects for directories)."""
+
         def _create():
             # Create directory placeholders
             for subdir in ["project_files", "out"]:
                 s3_key = f"workspaces/{session_id}/{subdir}/.keep"
-                self.s3_client.put_object(
-                    Bucket=self.bucket_name,
-                    Key=s3_key,
-                    Body=b""
-                )
+                self.s3_client.put_object(Bucket=self.bucket_name, Key=s3_key, Body=b"")
 
         await asyncio.to_thread(_create)
 
     async def delete_workspace(self, session_id: str) -> None:
         """Delete all objects in the workspace."""
+
         def _delete():
             prefix = f"workspaces/{session_id}/"
 
             # List and delete all objects
-            paginator = self.s3_client.get_paginator('list_objects_v2')
+            paginator = self.s3_client.get_paginator("list_objects_v2")
             for page in paginator.paginate(Bucket=self.bucket_name, Prefix=prefix):
-                if 'Contents' in page:
-                    objects = [{'Key': obj['Key']} for obj in page['Contents']]
+                if "Contents" in page:
+                    objects = [{"Key": obj["Key"]} for obj in page["Contents"]]
                     if objects:
                         self.s3_client.delete_objects(
-                            Bucket=self.bucket_name,
-                            Delete={'Objects': objects}
+                            Bucket=self.bucket_name, Delete={"Objects": objects}
                         )
 
         await asyncio.to_thread(_delete)
 
     async def copy_to_workspace(
-        self,
-        session_id: str,
-        source_path: Path,
-        dest_container_path: str
+        self, session_id: str, source_path: Path, dest_container_path: str
     ) -> None:
         """Copy files from host to S3."""
+
         def _copy():
             if source_path.is_file():
                 s3_key = self._get_s3_key(session_id, dest_container_path)
-                with open(source_path, 'rb') as f:
-                    self.s3_client.put_object(
-                        Bucket=self.bucket_name,
-                        Key=s3_key,
-                        Body=f.read()
-                    )
+                with open(source_path, "rb") as f:
+                    self.s3_client.put_object(Bucket=self.bucket_name, Key=s3_key, Body=f.read())
             elif source_path.is_dir():
                 for file in source_path.rglob("*"):
                     if file.is_file():
@@ -262,11 +246,9 @@ class S3Storage(WorkspaceStorage):
                         container_file_path = f"{dest_container_path.rstrip('/')}/{relative_path}"
                         s3_key = self._get_s3_key(session_id, container_file_path)
 
-                        with open(file, 'rb') as f:
+                        with open(file, "rb") as f:
                             self.s3_client.put_object(
-                                Bucket=self.bucket_name,
-                                Key=s3_key,
-                                Body=f.read()
+                                Bucket=self.bucket_name, Key=s3_key, Body=f.read()
                             )
 
         await asyncio.to_thread(_copy)

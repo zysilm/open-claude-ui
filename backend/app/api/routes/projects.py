@@ -1,6 +1,5 @@
 """Project API routes."""
 
-from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
@@ -69,10 +68,18 @@ async def create_project(
         project_id=project.id,
         agent_type=default_template.agent_type if default_template else "code_agent",
         system_instructions=default_template.system_instructions if default_template else None,
-        enabled_tools=default_template.enabled_tools if default_template else ["bash", "file_read", "file_write", "edit_lines", "search", "think"],
+        enabled_tools=(
+            default_template.enabled_tools
+            if default_template
+            else ["bash", "file_read", "file_write", "edit_lines", "search", "think"]
+        ),
         llm_provider=default_template.llm_provider if default_template else "openai",
         llm_model=default_template.llm_model if default_template else "gpt-4o-mini",
-        llm_config=default_template.llm_config if default_template else {"temperature": 1.0, "max_tokens": 16384},
+        llm_config=(
+            default_template.llm_config
+            if default_template
+            else {"temperature": 1.0, "max_tokens": 16384}
+        ),
     )
     db.add(agent_config)
     await db.commit()
@@ -225,15 +232,16 @@ async def get_agent_template(template_id: str):
     template = get_template(template_id)
     if not template:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Template {template_id} not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Template {template_id} not found"
         )
 
     return template.model_dump()
 
 
-@router.post("/{project_id}/agent-config/apply-template/{template_id}",
-             response_model=AgentConfigurationResponse)
+@router.post(
+    "/{project_id}/agent-config/apply-template/{template_id}",
+    response_model=AgentConfigurationResponse,
+)
 async def apply_agent_template(
     project_id: str,
     template_id: str,
@@ -246,8 +254,7 @@ async def apply_agent_template(
     template_config = get_template_config(template_id)
     if not template_config:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Template {template_id} not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Template {template_id} not found"
         )
 
     # Verify project exists
@@ -262,16 +269,14 @@ async def apply_agent_template(
         )
 
     # Get or create agent configuration
-    config_query = select(AgentConfiguration).where(
-        AgentConfiguration.project_id == project_id
-    )
+    config_query = select(AgentConfiguration).where(AgentConfiguration.project_id == project_id)
     config_result = await db.execute(config_query)
     config = config_result.scalar_one_or_none()
 
     if not config:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Agent configuration for project {project_id} not found"
+            detail=f"Agent configuration for project {project_id} not found",
         )
 
     # Apply template configuration
@@ -285,7 +290,11 @@ async def apply_agent_template(
 
 
 # Chat Session endpoints (nested under projects)
-@router.post("/{project_id}/chat-sessions", response_model=ChatSessionResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{project_id}/chat-sessions",
+    response_model=ChatSessionResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def create_chat_session(
     project_id: str,
     session_data: ChatSessionCreate,
@@ -335,8 +344,8 @@ async def list_project_chat_sessions(
         )
 
     # Get total count
-    count_query = select(func.count()).select_from(ChatSession).where(
-        ChatSession.project_id == project_id
+    count_query = (
+        select(func.count()).select_from(ChatSession).where(ChatSession.project_id == project_id)
     )
     total_result = await db.execute(count_query)
     total = total_result.scalar_one()

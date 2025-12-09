@@ -7,6 +7,7 @@ import asyncio
 from typing import Dict, Optional, Callable, Any
 from datetime import datetime, timedelta
 
+
 class StreamingManager:
     """Manages streaming tasks independently of WebSocket connections"""
 
@@ -32,37 +33,34 @@ class StreamingManager:
                 pass
             print("[StreamingManager] Background cleanup worker stopped")
 
-    async def register_stream(
-        self,
-        session_id: str,
-        message_id: str,
-        cleanup_callback: Callable
-    ):
+    async def register_stream(self, session_id: str, message_id: str, cleanup_callback: Callable):
         """Register a new streaming session with cleanup callback"""
         async with self._lock:
             self.active_streams[session_id] = {
-                'message_id': message_id,
-                'started_at': datetime.now(),
-                'last_activity': datetime.now(),
-                'finalized': False,
-                'content_length': 0
+                "message_id": message_id,
+                "started_at": datetime.now(),
+                "last_activity": datetime.now(),
+                "finalized": False,
+                "content_length": 0,
             }
             self.cleanup_callbacks[session_id] = cleanup_callback
-            print(f"[StreamingManager] Registered stream for session {session_id}, message {message_id}")
+            print(
+                f"[StreamingManager] Registered stream for session {session_id}, message {message_id}"
+            )
 
     async def update_activity(self, session_id: str, content_length: int = 0):
         """Update last activity timestamp and content length for a stream"""
         async with self._lock:
             if session_id in self.active_streams:
-                self.active_streams[session_id]['last_activity'] = datetime.now()
+                self.active_streams[session_id]["last_activity"] = datetime.now()
                 if content_length > 0:
-                    self.active_streams[session_id]['content_length'] = content_length
+                    self.active_streams[session_id]["content_length"] = content_length
 
     async def mark_finalized(self, session_id: str):
         """Mark stream as successfully finalized"""
         async with self._lock:
             if session_id in self.active_streams:
-                self.active_streams[session_id]['finalized'] = True
+                self.active_streams[session_id]["finalized"] = True
                 print(f"[StreamingManager] Stream marked as finalized for session {session_id}")
 
     async def handle_disconnect(self, session_id: str):
@@ -77,7 +75,7 @@ class StreamingManager:
             print(f"[StreamingManager] No active stream found for session {session_id}")
             return
 
-        if stream_info['finalized']:
+        if stream_info["finalized"]:
             print(f"[StreamingManager] Stream already finalized for session {session_id}")
             # Clean up since it's already finalized
             async with self._lock:
@@ -92,7 +90,10 @@ class StreamingManager:
         for i in range(10):
             await asyncio.sleep(1)
             async with self._lock:
-                if session_id in self.active_streams and self.active_streams[session_id]['finalized']:
+                if (
+                    session_id in self.active_streams
+                    and self.active_streams[session_id]["finalized"]
+                ):
                     print(f"[StreamingManager] Stream naturally completed for session {session_id}")
                     # Clean up
                     del self.active_streams[session_id]
@@ -118,6 +119,7 @@ class StreamingManager:
             except Exception as e:
                 print(f"[StreamingManager] Cleanup failed for session {session_id}: {e}")
                 import traceback
+
                 traceback.print_exc()
             finally:
                 # Remove from tracking
@@ -144,12 +146,14 @@ class StreamingManager:
                 async with self._lock:
                     for session_id, info in self.active_streams.items():
                         # If no activity for 60 seconds and not finalized
-                        if not info['finalized']:
-                            time_since_activity = now - info['last_activity']
+                        if not info["finalized"]:
+                            time_since_activity = now - info["last_activity"]
                             if time_since_activity > timedelta(seconds=60):
                                 stuck_sessions.append(session_id)
-                                print(f"[StreamingManager] Found stuck session: {session_id} " +
-                                      f"(inactive for {time_since_activity.total_seconds():.0f} seconds)")
+                                print(
+                                    f"[StreamingManager] Found stuck session: {session_id} "
+                                    + f"(inactive for {time_since_activity.total_seconds():.0f} seconds)"
+                                )
 
                 # Cleanup stuck sessions (outside of lock to avoid deadlock)
                 for session_id in stuck_sessions:
@@ -161,9 +165,11 @@ class StreamingManager:
                     if self.active_streams:
                         print(f"[StreamingManager] Active streams: {len(self.active_streams)}")
                         for sid, info in self.active_streams.items():
-                            age = (now - info['started_at']).total_seconds()
-                            print(f"  - {sid}: age={age:.0f}s, finalized={info['finalized']}, " +
-                                  f"content_length={info['content_length']}")
+                            age = (now - info["started_at"]).total_seconds()
+                            print(
+                                f"  - {sid}: age={age:.0f}s, finalized={info['finalized']}, "
+                                + f"content_length={info['content_length']}"
+                            )
 
             except asyncio.CancelledError:
                 print("[StreamingManager] Cleanup worker cancelled")
@@ -171,9 +177,11 @@ class StreamingManager:
             except Exception as e:
                 print(f"[StreamingManager] Cleanup worker error: {e}")
                 import traceback
+
                 traceback.print_exc()
 
         print("[StreamingManager] Cleanup worker stopped")
+
 
 # Global instance
 streaming_manager = StreamingManager()

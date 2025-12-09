@@ -62,7 +62,7 @@ class FileManager:
         hasher = hashlib.sha256()
         size = 0
 
-        with open(file_path, 'wb') as f:
+        with open(file_path, "wb") as f:
             while True:
                 chunk = content.read(8192)
                 if not chunk:
@@ -129,12 +129,14 @@ class FileManager:
                 stat = file_path.stat()
                 relative_path = str(file_path.relative_to(self.base_path))
 
-                files.append({
-                    "path": relative_path,
-                    "name": file_path.name,
-                    "size": stat.st_size,
-                    "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
-                })
+                files.append(
+                    {
+                        "path": relative_path,
+                        "name": file_path.name,
+                        "size": stat.st_size,
+                        "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                    }
+                )
 
         return files
 
@@ -144,9 +146,9 @@ class FileManager:
         filename = os.path.basename(filename)
 
         # Remove dangerous characters
-        dangerous_chars = ['..', '/', '\\', '\0']
+        dangerous_chars = ["..", "/", "\\", "\0"]
         for char in dangerous_chars:
-            filename = filename.replace(char, '_')
+            filename = filename.replace(char, "_")
 
         # Limit length
         if len(filename) > 255:

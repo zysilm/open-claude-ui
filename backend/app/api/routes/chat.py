@@ -6,7 +6,7 @@ import base64
 import mimetypes
 from datetime import datetime
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, HTTPException, status, WebSocket
 from fastapi.responses import StreamingResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
@@ -34,6 +34,7 @@ router = APIRouter(prefix="/chats", tags=["chat"])
 # Workspace file models
 class WorkspaceFile(BaseModel):
     """Model for a file in the workspace."""
+
     id: Optional[str] = None  # File ID (only for uploaded files from database)
     name: str
     path: str
@@ -44,6 +45,7 @@ class WorkspaceFile(BaseModel):
 
 class WorkspaceFilesResponse(BaseModel):
     """Response model for workspace files."""
+
     uploaded: List[WorkspaceFile]
     output: List[WorkspaceFile]
 
@@ -202,8 +204,10 @@ async def list_content_blocks(
         )
 
     # Get total count
-    count_query = select(func.count()).select_from(ContentBlock).where(
-        ContentBlock.chat_session_id == session_id
+    count_query = (
+        select(func.count())
+        .select_from(ContentBlock)
+        .where(ContentBlock.chat_session_id == session_id)
     )
     total_result = await db.execute(count_query)
     total = total_result.scalar_one()
@@ -233,8 +237,7 @@ async def get_content_block(
 ):
     """Get a specific content block by ID."""
     query = select(ContentBlock).where(
-        ContentBlock.id == block_id,
-        ContentBlock.chat_session_id == session_id
+        ContentBlock.id == block_id, ContentBlock.chat_session_id == session_id
     )
     result = await db.execute(query)
     block = result.scalar_one_or_none()
@@ -273,7 +276,9 @@ async def _get_container_for_session(session_id: str, raise_if_not_found: bool =
     return container
 
 
-async def _list_files_from_storage(session_id: str, directory: str, file_type: str) -> List[WorkspaceFile]:
+async def _list_files_from_storage(
+    session_id: str, directory: str, file_type: str
+) -> List[WorkspaceFile]:
     """List files using storage backend (works even when container is stopped)."""
     files = []
     storage = get_storage()
@@ -282,22 +287,26 @@ async def _list_files_from_storage(session_id: str, directory: str, file_type: s
         file_infos = await storage.list_files(session_id, directory)
         for info in file_infos:
             # info.path is full path like /workspace/out/file.py
-            name = info.path.split('/')[-1]
+            name = info.path.split("/")[-1]
             mime_type, _ = mimetypes.guess_type(name)
-            files.append(WorkspaceFile(
-                name=name,
-                path=info.path,
-                size=info.size,
-                type=file_type,
-                mime_type=mime_type,
-            ))
+            files.append(
+                WorkspaceFile(
+                    name=name,
+                    path=info.path,
+                    size=info.size,
+                    type=file_type,
+                    mime_type=mime_type,
+                )
+            )
     except Exception as e:
         print(f"Error listing files from storage: {e}")
 
     return files
 
 
-async def _list_files_in_directory(container, directory: str, file_type: str) -> List[WorkspaceFile]:
+async def _list_files_in_directory(
+    container, directory: str, file_type: str
+) -> List[WorkspaceFile]:
     """List files in a directory within the container."""
     files = []
 
@@ -306,20 +315,22 @@ async def _list_files_in_directory(container, directory: str, file_type: str) ->
     exit_code, stdout, stderr = await container.execute(cmd, workdir="/workspace", timeout=10)
 
     if stdout.strip():
-        for line in stdout.strip().split('\n'):
-            if '\t' in line:
-                parts = line.split('\t')
+        for line in stdout.strip().split("\n"):
+            if "\t" in line:
+                parts = line.split("\t")
                 name = parts[0]
                 size = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 0
                 path = f"{directory}/{name}"
                 mime_type, _ = mimetypes.guess_type(name)
-                files.append(WorkspaceFile(
-                    name=name,
-                    path=path,
-                    size=size,
-                    type=file_type,
-                    mime_type=mime_type,
-                ))
+                files.append(
+                    WorkspaceFile(
+                        name=name,
+                        path=path,
+                        size=size,
+                        type=file_type,
+                        mime_type=mime_type,
+                    )
+                )
 
     return files
 
@@ -392,8 +403,7 @@ async def _read_file_content(session_id: str, path: str, db: AsyncSession = None
 
         # Find file in database
         file_query = select(File).where(
-            File.project_id == session.project_id,
-            File.filename == filename
+            File.project_id == session.project_id, File.filename == filename
         )
         file_result = await db.execute(file_query)
         file_record = file_result.scalar_one_or_none()
@@ -418,18 +428,20 @@ async def _read_file_content(session_id: str, path: str, db: AsyncSession = None
         mime_type = file_record.mime_type or mimetypes.guess_type(filename)[0]
         content_bytes = file_path.read_bytes()
 
-        if mime_type and mime_type.startswith('image/'):
-            b64_content = base64.b64encode(content_bytes).decode('utf-8')
+        if mime_type and mime_type.startswith("image/"):
+            b64_content = base64.b64encode(content_bytes).decode("utf-8")
             return f"data:{mime_type};base64,{b64_content}"
         else:
-            return content_bytes.decode('utf-8')
+            return content_bytes.decode("utf-8")
 
     # Try container first for output files
     container = await _get_container_for_session(session_id, raise_if_not_found=False)
 
     if container:
         # Check if file exists
-        exit_code, _, _ = await container.execute(f"test -f '{path}'", workdir="/workspace", timeout=5)
+        exit_code, _, _ = await container.execute(
+            f"test -f '{path}'", workdir="/workspace", timeout=5
+        )
         if exit_code != 0:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -450,14 +462,15 @@ async def _read_file_content(session_id: str, path: str, db: AsyncSession = None
             content_bytes = await storage.read_file(session_id, path)
             # Check if it's binary (image, etc.)
             mime_type, _ = mimetypes.guess_type(path)
-            if mime_type and mime_type.startswith('image/'):
+            if mime_type and mime_type.startswith("image/"):
                 # Return as base64 data URI
                 import base64 as b64
-                b64_content = b64.b64encode(content_bytes).decode('utf-8')
+
+                b64_content = b64.b64encode(content_bytes).decode("utf-8")
                 return f"data:{mime_type};base64,{b64_content}"
             else:
                 # Return as text
-                return content_bytes.decode('utf-8')
+                return content_bytes.decode("utf-8")
         except FileNotFoundError:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -471,12 +484,14 @@ async def _read_file_content(session_id: str, path: str, db: AsyncSession = None
 
 
 @router.get("/{session_id}/workspace/files/content")
-async def get_workspace_file_content(session_id: str, path: str, db: AsyncSession = Depends(get_db)):
+async def get_workspace_file_content(
+    session_id: str, path: str, db: AsyncSession = Depends(get_db)
+):
     """Get the content of a workspace file."""
     content = await _read_file_content(session_id, path, db)
 
     # Determine if it's a binary file (data URI)
-    is_binary = content.startswith('data:')
+    is_binary = content.startswith("data:")
     mime_type, _ = mimetypes.guess_type(path)
 
     return {
@@ -493,15 +508,15 @@ async def download_workspace_file(session_id: str, path: str, db: AsyncSession =
     content = await _read_file_content(session_id, path, db)
 
     # Get filename and mime type
-    filename = path.split('/')[-1]
+    filename = path.split("/")[-1]
     mime_type, _ = mimetypes.guess_type(filename)
-    mime_type = mime_type or 'application/octet-stream'
+    mime_type = mime_type or "application/octet-stream"
 
     # Handle binary files (data URIs)
-    if content.startswith('data:'):
+    if content.startswith("data:"):
         # Extract base64 content
         try:
-            header, b64_data = content.split(',', 1)
+            header, b64_data = content.split(",", 1)
             file_bytes = base64.b64decode(b64_data)
         except Exception:
             raise HTTPException(
@@ -509,7 +524,7 @@ async def download_workspace_file(session_id: str, path: str, db: AsyncSession =
                 detail="Failed to decode file content",
             )
     else:
-        file_bytes = content.encode('utf-8')
+        file_bytes = content.encode("utf-8")
 
     return Response(
         content=file_bytes,
@@ -521,7 +536,9 @@ async def download_workspace_file(session_id: str, path: str, db: AsyncSession =
 
 
 @router.get("/{session_id}/workspace/download-all")
-async def download_all_workspace_files(session_id: str, type: str = "output", db: AsyncSession = Depends(get_db)):
+async def download_all_workspace_files(
+    session_id: str, type: str = "output", db: AsyncSession = Depends(get_db)
+):
     """Download all files of a type as a zip archive."""
     if type == "uploaded":
         # Get uploaded files from database (project files)
@@ -572,20 +589,20 @@ async def download_all_workspace_files(session_id: str, type: str = "output", db
 
     # Create zip file in memory
     zip_buffer = io.BytesIO()
-    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
         for file in files:
             try:
                 content = await _read_file_content(session_id, file.path, db)
                 if content:
                     # Handle binary files (data URIs)
-                    if content.startswith('data:'):
+                    if content.startswith("data:"):
                         try:
-                            header, b64_data = content.split(',', 1)
+                            header, b64_data = content.split(",", 1)
                             file_bytes = base64.b64decode(b64_data)
                         except Exception:
                             continue
                     else:
-                        file_bytes = content.encode('utf-8')
+                        file_bytes = content.encode("utf-8")
 
                     zip_file.writestr(file.name, file_bytes)
             except HTTPException:
@@ -606,6 +623,7 @@ async def download_all_workspace_files(session_id: str, type: str = "output", db
 # Request model for upload to project
 class UploadToProjectRequest(BaseModel):
     """Request model for uploading workspace file to project."""
+
     path: str
     project_id: str
 
@@ -654,14 +672,14 @@ async def upload_workspace_file_to_project(
         raise
 
     # Get filename
-    filename = path.split('/')[-1]
+    filename = path.split("/")[-1]
     mime_type, _ = mimetypes.guess_type(filename)
-    mime_type = mime_type or 'application/octet-stream'
+    mime_type = mime_type or "application/octet-stream"
 
     # Handle binary files (data URIs)
-    if content.startswith('data:'):
+    if content.startswith("data:"):
         try:
-            header, b64_data = content.split(',', 1)
+            header, b64_data = content.split(",", 1)
             file_bytes = base64.b64decode(b64_data)
         except Exception:
             raise HTTPException(
@@ -669,13 +687,10 @@ async def upload_workspace_file_to_project(
                 detail="Failed to decode file content",
             )
     else:
-        file_bytes = content.encode('utf-8')
+        file_bytes = content.encode("utf-8")
 
     # Check if file already exists in project
-    existing_query = select(File).where(
-        File.project_id == project_id,
-        File.filename == filename
-    )
+    existing_query = select(File).where(File.project_id == project_id, File.filename == filename)
     existing_result = await db.execute(existing_query)
     existing_file = existing_result.scalar_one_or_none()
 

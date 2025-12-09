@@ -4,7 +4,7 @@ This service handles chunk accumulation without any database operations.
 """
 
 from collections import defaultdict
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional
 import time
 import logging
 from dataclasses import dataclass, field
@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class StreamMetadata:
     """Metadata for a streaming session."""
+
     chunk_count: int = 0
     total_bytes: int = 0
     is_streaming: bool = True
@@ -71,7 +72,9 @@ class StreamingBuffer:
         # Prevent memory overflow
         if len(self._buffers[message_id]) >= self.max_buffer_size:
             # Keep last N chunks for recovery
-            logger.warning(f"Buffer overflow for message {message_id}, truncating to last 1000 chunks")
+            logger.warning(
+                f"Buffer overflow for message {message_id}, truncating to last 1000 chunks"
+            )
             self._buffers[message_id] = self._buffers[message_id][-1000:]
 
         self._buffers[message_id].append(chunk)
@@ -81,7 +84,9 @@ class StreamingBuffer:
         metadata.chunk_count += 1
         metadata.total_bytes += len(chunk)
 
-        logger.debug(f"Added chunk #{metadata.chunk_count} ({len(chunk)} bytes) to message {message_id}")
+        logger.debug(
+            f"Added chunk #{metadata.chunk_count} ({len(chunk)} bytes) to message {message_id}"
+        )
 
     def get_complete_content(self, message_id: str) -> str:
         """
@@ -98,7 +103,9 @@ class StreamingBuffer:
             return ""
 
         content = "".join(self._buffers[message_id])
-        logger.debug(f"Retrieved complete content for message {message_id}: {len(content)} characters")
+        logger.debug(
+            f"Retrieved complete content for message {message_id}: {len(content)} characters"
+        )
         return content
 
     def get_chunks_since(self, message_id: str, chunk_index: int) -> List[str]:
@@ -117,7 +124,9 @@ class StreamingBuffer:
             return []
 
         chunks = self._buffers[message_id][chunk_index:]
-        logger.info(f"Retrieved {len(chunks)} chunks for message {message_id} starting from index {chunk_index}")
+        logger.info(
+            f"Retrieved {len(chunks)} chunks for message {message_id} starting from index {chunk_index}"
+        )
         return chunks
 
     def get_metadata(self, message_id: str) -> Optional[StreamMetadata]:
@@ -159,7 +168,7 @@ class StreamingBuffer:
             "total_bytes": metadata.total_bytes,
             "duration": duration,
             "is_streaming": metadata.is_streaming,
-            "error": metadata.error
+            "error": metadata.error,
         }
 
         logger.info(
@@ -191,10 +200,7 @@ class StreamingBuffer:
         Returns:
             List of message IDs that are currently streaming
         """
-        active = [
-            msg_id for msg_id, metadata in self._metadata.items()
-            if metadata.is_streaming
-        ]
+        active = [msg_id for msg_id, metadata in self._metadata.items() if metadata.is_streaming]
         logger.debug(f"Found {len(active)} active streams")
         return active
 
@@ -206,16 +212,13 @@ class StreamingBuffer:
             Dictionary with memory usage information
         """
         total_chunks = sum(len(chunks) for chunks in self._buffers.values())
-        total_bytes = sum(
-            sum(len(chunk) for chunk in chunks)
-            for chunks in self._buffers.values()
-        )
+        total_bytes = sum(sum(len(chunk) for chunk in chunks) for chunks in self._buffers.values())
 
         return {
             "buffer_count": len(self._buffers),
             "total_chunks": total_chunks,
             "total_bytes": total_bytes,
-            "active_streams": len(self.get_active_streams())
+            "active_streams": len(self.get_active_streams()),
         }
 
     def has_buffer(self, message_id: str) -> bool:

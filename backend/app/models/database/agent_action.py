@@ -11,6 +11,7 @@ from app.core.storage.database import Base
 
 class AgentActionStatus(str, enum.Enum):
     """Agent action status enum."""
+
     PENDING = "pending"
     SUCCESS = "success"
     ERROR = "error"
@@ -27,7 +28,9 @@ class AgentAction(Base):
     action_input = Column(JSON, nullable=False)
     action_output = Column(JSON, nullable=True)
     status = Column(Enum(AgentActionStatus), default=AgentActionStatus.PENDING, nullable=False)
-    action_metadata = Column(JSON, nullable=True)  # Additional metadata (e.g., image data for file_read)
+    action_metadata = Column(
+        JSON, nullable=True
+    )  # Additional metadata (e.g., image data for file_read)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     # Relationships

@@ -15,12 +15,14 @@ router = APIRouter(prefix="/sandbox", tags=["sandbox"])
 
 class ExecuteCommandRequest(BaseModel):
     """Request model for command execution."""
+
     command: str
     workdir: str = "/workspace"
 
 
 class ExecuteCommandResponse(BaseModel):
     """Response model for command execution."""
+
     exit_code: int
     stdout: str
     stderr: str
@@ -28,6 +30,7 @@ class ExecuteCommandResponse(BaseModel):
 
 class ContainerStatusResponse(BaseModel):
     """Response model for container status."""
+
     running: bool
     container_id: str | None
     stats: dict | None
@@ -138,6 +141,8 @@ async def reset_sandbox(
                 detail="Sandbox not found or not running",
             )
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -208,6 +213,8 @@ async def execute_command(
             stderr=stderr,
         )
 
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

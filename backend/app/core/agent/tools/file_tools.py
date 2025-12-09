@@ -1,7 +1,7 @@
 """File operation tools for agent."""
 
 from typing import List, Type
-from pydantic import BaseModel, Field, field_validator, ValidationError, ConfigDict
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from app.core.agent.tools.base import Tool, ToolParameter, ToolResult
 from app.core.sandbox.container import SandboxContainer
 from app.core.sandbox.security import validate_file_path
@@ -9,15 +9,16 @@ from app.core.sandbox.security import validate_file_path
 
 # Pydantic schemas for parameter validation
 
+
 class FileReadInput(BaseModel):
     """Input schema for file_read tool."""
+
     model_config = ConfigDict(
         json_schema_extra={
-            "examples": [{
-                "path": "/workspace/out/script.py"
-            }, {
-                "path": "/workspace/project_files/data.csv"
-            }]
+            "examples": [
+                {"path": "/workspace/out/script.py"},
+                {"path": "/workspace/project_files/data.csv"},
+            ]
         }
     )
 
@@ -25,40 +26,38 @@ class FileReadInput(BaseModel):
         description="Full path to the file (e.g., '/workspace/project_files/data.csv' or '/workspace/out/script.py')"
     )
 
-    @field_validator('path')
+    @field_validator("path")
     @classmethod
     def validate_path(cls, v: str) -> str:
-        if not v.startswith('/workspace/'):
-            raise ValueError('Path must start with /workspace/')
+        if not v.startswith("/workspace/"):
+            raise ValueError("Path must start with /workspace/")
         return v
 
 
 class FileWriteInput(BaseModel):
     """Input schema for file_write tool."""
+
     model_config = ConfigDict(
         json_schema_extra={
-            "examples": [{
-                "filename": "script.py",
-                "content": "print('Hello, World!')"
-            }, {
-                "filename": "config.json",
-                "content": '{"key": "value"}'
-            }]
+            "examples": [
+                {"filename": "script.py", "content": "print('Hello, World!')"},
+                {"filename": "config.json", "content": '{"key": "value"}'},
+            ]
         }
     )
 
     filename: str = Field(
         description="Filename to write (e.g., 'script.py', 'config.json'). Must be a simple filename without path separators."
     )
-    content: str = Field(
-        description="Content to write to the file"
-    )
+    content: str = Field(description="Content to write to the file")
 
-    @field_validator('filename')
+    @field_validator("filename")
     @classmethod
     def validate_filename(cls, v: str) -> str:
-        if '/' in v or '\\' in v or v.startswith('.'):
-            raise ValueError('Filename must be a simple filename without path separators or leading dots')
+        if "/" in v or "\\" in v or v.startswith("."):
+            raise ValueError(
+                "Filename must be a simple filename without path separators or leading dots"
+            )
         return v
 
 
@@ -142,7 +141,7 @@ class FileReadTool(Tool):
                 )
 
             # Check if it's a binary file (data URI)
-            is_binary = content.startswith('data:')
+            is_binary = content.startswith("data:")
 
             # For images, provide helpful metadata
             metadata = {
@@ -152,10 +151,10 @@ class FileReadTool(Tool):
             }
 
             # Add helpful message for images
-            if is_binary and 'image/' in content[:50]:
-                filename = path.split('/')[-1]
+            if is_binary and "image/" in content[:50]:
+                filename = path.split("/")[-1]
                 # Extract MIME type and calculate size
-                mime_type = content.split(';')[0].replace('data:', '')
+                mime_type = content.split(";")[0].replace("data:", "")
                 data_size_kb = len(content) // 1024
 
                 # ALWAYS use short message for LLM to save tokens
@@ -175,11 +174,11 @@ class FileReadTool(Tool):
             else:
                 # Format text content with line numbers for easy reference
                 # This is essential for using edit_lines tool
-                lines = content.split('\n')
+                lines = content.split("\n")
                 formatted_lines = []
                 for i, line in enumerate(lines, 1):
                     formatted_lines.append(f"{i:>4}: {line}")
-                output_msg = '\n'.join(formatted_lines)
+                output_msg = "\n".join(formatted_lines)
                 metadata["line_count"] = len(lines)
 
             return ToolResult(
@@ -269,7 +268,7 @@ class FileWriteTool(Tool):
         """
         try:
             # Security: Only allow simple filenames, no path separators
-            if '/' in filename or '\\' in filename or filename.startswith('.'):
+            if "/" in filename or "\\" in filename or filename.startswith("."):
                 return ToolResult(
                     success=False,
                     output="",

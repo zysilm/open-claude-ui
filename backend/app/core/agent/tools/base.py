@@ -8,6 +8,7 @@ import json
 
 class ToolParameter(BaseModel):
     """Tool parameter definition."""
+
     name: str
     type: str  # "string", "number", "boolean", "object", "array"
     description: str
@@ -17,6 +18,7 @@ class ToolParameter(BaseModel):
 
 class ToolDefinition(BaseModel):
     """Tool definition for LLM function calling."""
+
     name: str
     description: str
     parameters: List[ToolParameter]
@@ -24,13 +26,14 @@ class ToolDefinition(BaseModel):
 
 class ToolResult(BaseModel):
     """Result from tool execution."""
+
     success: bool
     output: str
     error: str | None = None
     metadata: Dict[str, Any] = Field(default_factory=dict)
     is_validation_error: bool = Field(
         default=False,
-        description="True if error is from parameter validation (handled internally), False if from execution (user-facing)"
+        description="True if error is from parameter validation (handled internally), False if from execution (user-facing)",
     )
 
 
@@ -101,11 +104,7 @@ class Tool(ABC):
             try:
                 return await self.execute(**kwargs)
             except Exception as e:
-                return ToolResult(
-                    success=False,
-                    output="",
-                    error=f"Tool execution error: {str(e)}"
-                )
+                return ToolResult(success=False, output="", error=f"Tool execution error: {str(e)}")
 
         # Validate parameters with Pydantic schema
         try:
@@ -124,24 +123,19 @@ class Tool(ABC):
                 success=False,
                 output="",
                 error=error_message,
-                is_validation_error=True  # Mark as validation error for internal handling
+                is_validation_error=True,  # Mark as validation error for internal handling
             )
 
         except Exception as e:
             # Handle execution errors
-            return ToolResult(
-                success=False,
-                output="",
-                error=f"Tool execution error: {str(e)}"
-            )
+            return ToolResult(success=False, output="", error=f"Tool execution error: {str(e)}")
 
     def _format_validation_error(self, error: ValidationError) -> str:
         """Format validation error with helpful details."""
         errors = error.errors()
-        error_details = "\n".join([
-            f"  - {err['loc'][0] if err['loc'] else 'root'}: {err['msg']}"
-            for err in errors
-        ])
+        error_details = "\n".join(
+            [f"  - {err['loc'][0] if err['loc'] else 'root'}: {err['msg']}" for err in errors]
+        )
 
         message = f"Parameter validation failed for '{self.name}':\n{error_details}\n"
 
@@ -150,13 +144,13 @@ class Tool(ABC):
             schema = self.input_schema.model_json_schema()
 
             # Add example if available
-            if 'examples' in schema and schema['examples']:
-                example = schema['examples'][0]
+            if "examples" in schema and schema["examples"]:
+                example = schema["examples"][0]
                 message += f"\nExample valid call:\n{json.dumps(example, indent=2)}\n"
 
             # Add required fields
-            if 'required' in schema:
-                required = ", ".join(schema['required'])
+            if "required" in schema:
+                required = ", ".join(schema["required"])
                 message += f"\nRequired parameters: {required}\n"
 
         message += "\nPlease check the parameters and try again."
@@ -191,7 +185,7 @@ class Tool(ABC):
                 "name": self.name,
                 "description": self.description,
                 "parameters": parameters_dict,
-            }
+            },
         }
 
 

@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 class StreamingEvent(Enum):
     """Enumeration of all streaming-related events."""
+
     # Core streaming events
     START = "streaming.start"
     CHUNK = "streaming.chunk"
@@ -43,6 +44,7 @@ class StreamingEvent(Enum):
 @dataclass
 class EventData:
     """Container for event data."""
+
     event_type: StreamingEvent
     payload: Dict[str, Any]
     timestamp: datetime = None
@@ -69,12 +71,7 @@ class EventBus:
 
         logger.info("EventBus initialized")
 
-    def subscribe(
-        self,
-        event: StreamingEvent,
-        handler: Callable,
-        priority: int = 0
-    ) -> None:
+    def subscribe(self, event: StreamingEvent, handler: Callable, priority: int = 0) -> None:
         """
         Subscribe to an event.
 
@@ -92,11 +89,7 @@ class EventBus:
 
         logger.debug(f"Subscribed handler {handler.__name__} to event {event.value}")
 
-    def unsubscribe(
-        self,
-        event: StreamingEvent,
-        handler: Callable
-    ) -> None:
+    def unsubscribe(self, event: StreamingEvent, handler: Callable) -> None:
         """
         Unsubscribe from an event.
 
@@ -105,18 +98,10 @@ class EventBus:
             handler: The callback function to remove
         """
         if event in self._subscribers:
-            self._subscribers[event] = [
-                (p, h) for p, h in self._subscribers[event]
-                if h != handler
-            ]
+            self._subscribers[event] = [(p, h) for p, h in self._subscribers[event] if h != handler]
             logger.debug(f"Unsubscribed handler {handler.__name__} from event {event.value}")
 
-    async def emit(
-        self,
-        event: StreamingEvent,
-        data: Any,
-        source: Optional[str] = None
-    ) -> None:
+    async def emit(self, event: StreamingEvent, data: Any, source: Optional[str] = None) -> None:
         """
         Emit an event to all subscribers.
 
@@ -128,7 +113,7 @@ class EventBus:
         event_data = EventData(
             event_type=event,
             payload=data if isinstance(data, dict) else {"data": data},
-            source=source
+            source=source,
         )
 
         # Add to history
@@ -155,7 +140,9 @@ class EventBus:
                 if event in self._subscribers:
                     for priority, handler in self._subscribers[event]:
                         try:
-                            logger.debug(f"Executing handler {handler.__name__} for event {event.value}")
+                            logger.debug(
+                                f"Executing handler {handler.__name__} for event {event.value}"
+                            )
 
                             if asyncio.iscoroutinefunction(handler):
                                 await handler(event_data.payload)
@@ -166,7 +153,7 @@ class EventBus:
                             logger.error(
                                 f"Error in event handler {handler.__name__} "
                                 f"for event {event.value}: {e}",
-                                exc_info=True
+                                exc_info=True,
                             )
 
         finally:
@@ -183,12 +170,10 @@ class EventBus:
 
         # Trim history if it exceeds max size
         if len(self._event_history) > self._max_history_size:
-            self._event_history = self._event_history[-self._max_history_size:]
+            self._event_history = self._event_history[-self._max_history_size :]
 
     def get_history(
-        self,
-        event_type: Optional[StreamingEvent] = None,
-        limit: int = 100
+        self, event_type: Optional[StreamingEvent] = None, limit: int = 100
     ) -> List[EventData]:
         """
         Get event history for debugging.
@@ -228,9 +213,7 @@ class EventBus:
             return sum(len(handlers) for handlers in self._subscribers.values())
 
     async def wait_for_event(
-        self,
-        event: StreamingEvent,
-        timeout: Optional[float] = None
+        self, event: StreamingEvent, timeout: Optional[float] = None
     ) -> Optional[EventData]:
         """
         Wait for a specific event to occur.

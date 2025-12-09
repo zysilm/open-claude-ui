@@ -3,11 +3,11 @@ Message Persistence Service - handles all database operations for messages.
 This service ensures atomic persistence of complete message content.
 """
 
-from typing import Optional, Dict, Any
+from typing import Optional, Dict
 from dataclasses import dataclass
 from datetime import datetime
 import logging
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -20,12 +20,14 @@ logger = logging.getLogger(__name__)
 
 class PersistenceError(Exception):
     """Custom exception for persistence failures."""
+
     pass
 
 
 @dataclass
 class MessageData:
     """Immutable message data structure."""
+
     session_id: str
     role: str
     content: str
@@ -44,11 +46,7 @@ class MessagePersistenceService:
         self._pending_saves: Dict[str, MessageData] = {}
 
     async def create_message(
-        self,
-        session_id: str,
-        role: str,
-        initial_content: str = "",
-        metadata: Optional[dict] = None
+        self, session_id: str, role: str, initial_content: str = "", metadata: Optional[dict] = None
     ) -> str:
         """
         Create a new message and return its ID.
@@ -62,7 +60,7 @@ class MessagePersistenceService:
                 content=initial_content,
                 created_at=datetime.utcnow(),
                 message_metadata=metadata or {},
-                is_complete=False  # Mark as incomplete initially
+                is_complete=False,  # Mark as incomplete initially
             )
 
             self.db.add(message)
@@ -76,10 +74,7 @@ class MessagePersistenceService:
             raise PersistenceError(f"Failed to create message: {e}")
 
     async def save_complete_message(
-        self,
-        message_id: str,
-        final_content: str,
-        metadata: Optional[dict] = None
+        self, message_id: str, final_content: str, metadata: Optional[dict] = None
     ) -> bool:
         """
         Atomically save the complete message content.
@@ -87,16 +82,16 @@ class MessagePersistenceService:
         """
         try:
             # Get the message from database
-            result = await self.db.execute(
-                select(Message).where(Message.id == message_id)
-            )
+            result = await self.db.execute(select(Message).where(Message.id == message_id))
             message = result.scalar_one_or_none()
 
             if not message:
                 raise ValueError(f"Message {message_id} not found")
 
             # Log before saving
-            logger.info(f"Saving complete content for message {message_id}: {len(final_content)} characters")
+            logger.info(
+                f"Saving complete content for message {message_id}: {len(final_content)} characters"
+            )
 
             # Save complete content
             message.content = final_content
@@ -118,7 +113,9 @@ class MessagePersistenceService:
                     f"got {len(message.content)}"
                 )
 
-            logger.info(f"Successfully persisted message {message_id} with {len(message.content)} characters")
+            logger.info(
+                f"Successfully persisted message {message_id} with {len(message.content)} characters"
+            )
             return True
 
         except Exception as e:
@@ -127,18 +124,13 @@ class MessagePersistenceService:
             raise PersistenceError(f"Failed to persist message: {e}")
 
     async def update_message_content(
-        self,
-        message_id: str,
-        content: str,
-        is_partial: bool = True
+        self, message_id: str, content: str, is_partial: bool = True
     ) -> bool:
         """
         Update message content (used during streaming for partial updates).
         """
         try:
-            result = await self.db.execute(
-                select(Message).where(Message.id == message_id)
-            )
+            result = await self.db.execute(select(Message).where(Message.id == message_id))
             message = result.scalar_one_or_none()
 
             if not message:
@@ -152,7 +144,9 @@ class MessagePersistenceService:
             # Don't commit here - let the caller decide when to commit
             await self.db.flush()
 
-            logger.debug(f"Updated message {message_id} with {len(content)} characters (partial={is_partial})")
+            logger.debug(
+                f"Updated message {message_id} with {len(content)} characters (partial={is_partial})"
+            )
             return True
 
         except Exception as e:
@@ -162,9 +156,7 @@ class MessagePersistenceService:
     async def mark_message_incomplete(self, message_id: str):
         """Mark a message as incomplete (for error cases)."""
         try:
-            result = await self.db.execute(
-                select(Message).where(Message.id == message_id)
-            )
+            result = await self.db.execute(select(Message).where(Message.id == message_id))
             message = result.scalar_one_or_none()
 
             if message:
@@ -184,24 +176,22 @@ class MessagePersistenceService:
     async def get_message(self, message_id: str) -> Optional[Message]:
         """Retrieve a message by ID."""
         try:
-            result = await self.db.execute(
-                select(Message).where(Message.id == message_id)
-            )
+            result = await self.db.execute(select(Message).where(Message.id == message_id))
             return result.scalar_one_or_none()
         except Exception as e:
             logger.error(f"Failed to get message {message_id}: {e}")
             return None
 
     async def get_session_messages(
-        self,
-        session_id: str,
-        limit: Optional[int] = None
+        self, session_id: str, limit: Optional[int] = None
     ) -> list[Message]:
         """Get all messages for a session."""
         try:
-            query = select(Message).where(
-                Message.chat_session_id == session_id
-            ).order_by(Message.created_at)
+            query = (
+                select(Message)
+                .where(Message.chat_session_id == session_id)
+                .order_by(Message.created_at)
+            )
 
             if limit:
                 query = query.limit(limit)
@@ -221,8 +211,7 @@ class MessagePersistenceService:
         try:
             result = await self.db.execute(
                 select(Message).where(
-                    Message.chat_session_id == session_id,
-                    Message.is_complete == False
+                    Message.chat_session_id == session_id, Message.is_complete.is_(False)
                 )
             )
             incomplete_messages = result.scalars().all()

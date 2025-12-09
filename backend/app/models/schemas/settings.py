@@ -23,7 +23,9 @@ class ApiKeyStatus(BaseModel):
 
     provider: str = Field(..., description="Provider name")
     is_configured: bool = Field(..., description="Whether a key is configured for this provider")
-    last_used_at: Optional[str] = Field(None, description="Last time this key was used (ISO format)")
+    last_used_at: Optional[str] = Field(
+        None, description="Last time this key was used (ISO format)"
+    )
     created_at: str = Field(..., description="When the key was added (ISO format)")
 
 

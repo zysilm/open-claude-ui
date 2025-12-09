@@ -3,7 +3,7 @@ Message Orchestrator - coordinates between streaming, persistence, and events.
 This is the main controller that manages the complete message lifecycle.
 """
 
-from typing import Optional, Dict, List, Any
+from typing import Optional, Dict
 import logging
 import time
 from datetime import datetime
@@ -22,10 +22,7 @@ class MessageOrchestrator:
     """
 
     def __init__(
-        self,
-        persistence: MessagePersistenceService,
-        buffer: StreamingBuffer,
-        event_bus: EventBus
+        self, persistence: MessagePersistenceService, buffer: StreamingBuffer, event_bus: EventBus
     ):
         """
         Initialize the orchestrator with required services.
@@ -43,10 +40,7 @@ class MessageOrchestrator:
         logger.info("MessageOrchestrator initialized")
 
     async def start_streaming(
-        self,
-        session_id: str,
-        role: str = "assistant",
-        metadata: Optional[dict] = None
+        self, session_id: str, role: str = "assistant", metadata: Optional[dict] = None
     ) -> str:
         """
         Start a new streaming message.
@@ -61,9 +55,7 @@ class MessageOrchestrator:
         """
         try:
             # 1. Create message in DB (but don't commit content yet)
-            message_id = await self.persistence.create_message(
-                session_id, role, "", metadata
-            )
+            message_id = await self.persistence.create_message(session_id, role, "", metadata)
 
             # 2. Initialize streaming buffer
             self.buffer.start_streaming(message_id)
@@ -72,12 +64,15 @@ class MessageOrchestrator:
             self._active_streams[message_id] = session_id
 
             # 4. Emit event for WebSocket
-            await self.event_bus.emit(StreamingEvent.START, {
-                "message_id": message_id,
-                "session_id": session_id,
-                "role": role,
-                "timestamp": datetime.utcnow().isoformat()
-            })
+            await self.event_bus.emit(
+                StreamingEvent.START,
+                {
+                    "message_id": message_id,
+                    "session_id": session_id,
+                    "role": role,
+                    "timestamp": datetime.utcnow().isoformat(),
+                },
+            )
 
             logger.info(f"Started streaming for message {message_id} in session {session_id}")
             return message_id
@@ -86,11 +81,7 @@ class MessageOrchestrator:
             logger.error(f"Failed to start streaming: {e}")
             raise
 
-    async def process_chunk(
-        self,
-        message_id: str,
-        chunk: str
-    ) -> None:
+    async def process_chunk(self, message_id: str, chunk: str) -> None:
         """
         Process a streaming chunk.
 
@@ -103,20 +94,22 @@ class MessageOrchestrator:
             self.buffer.add_chunk(message_id, chunk)
 
             # 2. Emit event for WebSocket delivery
-            await self.event_bus.emit(StreamingEvent.CHUNK, {
-                "message_id": message_id,
-                "content": chunk,
-                "timestamp": datetime.utcnow().isoformat()
-            })
+            await self.event_bus.emit(
+                StreamingEvent.CHUNK,
+                {
+                    "message_id": message_id,
+                    "content": chunk,
+                    "timestamp": datetime.utcnow().isoformat(),
+                },
+            )
 
             logger.debug(f"Processed chunk for message {message_id}: {len(chunk)} characters")
 
         except ValueError as e:
             logger.error(f"Failed to process chunk: {e}")
-            await self.event_bus.emit(StreamingEvent.ERROR, {
-                "message_id": message_id,
-                "error": str(e)
-            })
+            await self.event_bus.emit(
+                StreamingEvent.ERROR, {"message_id": message_id, "error": str(e)}
+            )
 
     async def process_action(
         self,
@@ -124,7 +117,7 @@ class MessageOrchestrator:
         tool: str,
         args: Optional[dict] = None,
         status: str = "start",
-        step: Optional[int] = None
+        step: Optional[int] = None,
     ) -> None:
         """
         Process a tool/action event.
@@ -137,21 +130,27 @@ class MessageOrchestrator:
             step: Step number in the action sequence
         """
         if status == "streaming":
-            await self.event_bus.emit(StreamingEvent.ACTION_STREAMING, {
-                "message_id": message_id,
-                "tool": tool,
-                "status": status,
-                "step": step,
-                "timestamp": datetime.utcnow().isoformat()
-            })
+            await self.event_bus.emit(
+                StreamingEvent.ACTION_STREAMING,
+                {
+                    "message_id": message_id,
+                    "tool": tool,
+                    "status": status,
+                    "step": step,
+                    "timestamp": datetime.utcnow().isoformat(),
+                },
+            )
         elif status == "complete":
-            await self.event_bus.emit(StreamingEvent.ACTION_COMPLETE, {
-                "message_id": message_id,
-                "tool": tool,
-                "args": args,
-                "step": step,
-                "timestamp": datetime.utcnow().isoformat()
-            })
+            await self.event_bus.emit(
+                StreamingEvent.ACTION_COMPLETE,
+                {
+                    "message_id": message_id,
+                    "tool": tool,
+                    "args": args,
+                    "step": step,
+                    "timestamp": datetime.utcnow().isoformat(),
+                },
+            )
 
     async def process_observation(
         self,
@@ -159,7 +158,7 @@ class MessageOrchestrator:
         content: str,
         success: bool = True,
         metadata: Optional[dict] = None,
-        step: Optional[int] = None
+        step: Optional[int] = None,
     ) -> None:
         """
         Process an observation/result from a tool.
@@ -171,20 +170,19 @@ class MessageOrchestrator:
             metadata: Optional observation metadata
             step: Step number
         """
-        await self.event_bus.emit(StreamingEvent.OBSERVATION, {
-            "message_id": message_id,
-            "content": content,
-            "success": success,
-            "metadata": metadata,
-            "step": step,
-            "timestamp": datetime.utcnow().isoformat()
-        })
+        await self.event_bus.emit(
+            StreamingEvent.OBSERVATION,
+            {
+                "message_id": message_id,
+                "content": content,
+                "success": success,
+                "metadata": metadata,
+                "step": step,
+                "timestamp": datetime.utcnow().isoformat(),
+            },
+        )
 
-    async def complete_streaming(
-        self,
-        message_id: str,
-        cancelled: bool = False
-    ) -> bool:
+    async def complete_streaming(self, message_id: str, cancelled: bool = False) -> bool:
         """
         Complete streaming and persist to database.
 
@@ -207,16 +205,14 @@ class MessageOrchestrator:
             metadata["cancelled"] = cancelled
 
             # 3. Emit persistence start event
-            await self.event_bus.emit(StreamingEvent.PERSIST_START, {
-                "message_id": message_id,
-                "content_length": len(complete_content)
-            })
+            await self.event_bus.emit(
+                StreamingEvent.PERSIST_START,
+                {"message_id": message_id, "content_length": len(complete_content)},
+            )
 
             # 4. Persist complete message (single atomic operation)
             success = await self.persistence.save_complete_message(
-                message_id,
-                complete_content,
-                metadata
+                message_id, complete_content, metadata
             )
 
             if not success:
@@ -238,18 +234,24 @@ class MessageOrchestrator:
             self._active_streams.pop(message_id, None)
 
             # 8. Emit success events
-            await self.event_bus.emit(StreamingEvent.PERSIST_SUCCESS, {
-                "message_id": message_id,
-                "content_length": len(complete_content),
-                "metadata": metadata
-            })
+            await self.event_bus.emit(
+                StreamingEvent.PERSIST_SUCCESS,
+                {
+                    "message_id": message_id,
+                    "content_length": len(complete_content),
+                    "metadata": metadata,
+                },
+            )
 
-            await self.event_bus.emit(StreamingEvent.END, {
-                "message_id": message_id,
-                "success": True,
-                "content_length": len(complete_content),
-                "timestamp": datetime.utcnow().isoformat()
-            })
+            await self.event_bus.emit(
+                StreamingEvent.END,
+                {
+                    "message_id": message_id,
+                    "success": True,
+                    "content_length": len(complete_content),
+                    "timestamp": datetime.utcnow().isoformat(),
+                },
+            )
 
             logger.info(
                 f"Successfully completed streaming for message {message_id}: "
@@ -264,23 +266,22 @@ class MessageOrchestrator:
             await self.persistence.mark_message_incomplete(message_id)
 
             # Emit failure events
-            await self.event_bus.emit(StreamingEvent.PERSIST_FAILURE, {
-                "message_id": message_id,
-                "error": str(e)
-            })
+            await self.event_bus.emit(
+                StreamingEvent.PERSIST_FAILURE, {"message_id": message_id, "error": str(e)}
+            )
 
-            await self.event_bus.emit(StreamingEvent.ERROR, {
-                "message_id": message_id,
-                "error": str(e),
-                "timestamp": datetime.utcnow().isoformat()
-            })
+            await self.event_bus.emit(
+                StreamingEvent.ERROR,
+                {
+                    "message_id": message_id,
+                    "error": str(e),
+                    "timestamp": datetime.utcnow().isoformat(),
+                },
+            )
 
             return False
 
-    async def resume_streaming(
-        self,
-        session_id: str
-    ) -> Optional[dict]:
+    async def resume_streaming(self, session_id: str) -> Optional[dict]:
         """
         Resume an interrupted stream.
 
@@ -299,7 +300,7 @@ class MessageOrchestrator:
                         "message_id": message_id,
                         "chunk_count": metadata.chunk_count,
                         "total_bytes": metadata.total_bytes,
-                        "is_streaming": metadata.is_streaming
+                        "is_streaming": metadata.is_streaming,
                     }
 
                     # Emit resume event
@@ -311,10 +312,7 @@ class MessageOrchestrator:
         logger.info(f"No active stream found for session {session_id}")
         return None
 
-    async def cancel_streaming(
-        self,
-        message_id: str
-    ) -> bool:
+    async def cancel_streaming(self, message_id: str) -> bool:
         """
         Cancel an active streaming session.
 
@@ -383,7 +381,7 @@ class MessageOrchestrator:
                 time.time() - metadata.start_time
                 if metadata.is_streaming
                 else metadata.end_time - metadata.start_time
-            )
+            ),
         }
 
     async def cleanup_incomplete_streams(self, session_id: str) -> int:

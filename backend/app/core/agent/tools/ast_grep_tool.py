@@ -83,8 +83,24 @@ LANGUAGE_ALIASES: Dict[str, str] = {
 
 # Supported languages
 SUPPORTED_LANGUAGES = [
-    "python", "javascript", "typescript", "go", "rust", "java", "c", "cpp",
-    "html", "css", "json", "yaml", "toml", "bash", "lua", "ruby", "kotlin", "swift"
+    "python",
+    "javascript",
+    "typescript",
+    "go",
+    "rust",
+    "java",
+    "c",
+    "cpp",
+    "html",
+    "css",
+    "json",
+    "yaml",
+    "toml",
+    "bash",
+    "lua",
+    "ruby",
+    "kotlin",
+    "swift",
 ]
 
 
@@ -209,7 +225,7 @@ class AstGrepTool(Tool):
         language: Optional[str] = None,
         path: str = "/workspace/out",
         max_results: int = 50,
-        **kwargs
+        **kwargs,
     ) -> ToolResult:
         """Execute AST search using ast-grep.
 
@@ -231,9 +247,7 @@ class AstGrepTool(Tool):
             # Validate directory exists
             try:
                 await self._container.execute(
-                    f"test -d {search_path} && echo 'exists'",
-                    workdir="/workspace",
-                    timeout=5
+                    f"test -d {search_path} && echo 'exists'", workdir="/workspace", timeout=5
                 )
             except Exception:
                 return ToolResult(
@@ -245,9 +259,7 @@ class AstGrepTool(Tool):
 
             # Check if ast-grep is available
             exit_code, _, stderr = await self._container.execute(
-                "which ast-grep || which sg",
-                workdir="/workspace",
-                timeout=5
+                "which ast-grep || which sg", workdir="/workspace", timeout=5
             )
             if exit_code != 0:
                 return ToolResult(
@@ -280,9 +292,7 @@ class AstGrepTool(Tool):
 
             # Execute search
             exit_code, stdout, stderr = await self._container.execute(
-                cmd,
-                workdir="/workspace",
-                timeout=60
+                cmd, workdir="/workspace", timeout=60
             )
 
             # Parse results
@@ -322,7 +332,9 @@ class AstGrepTool(Tool):
                 )
 
             # Format output for display
-            output = self._format_output(matches, resolved_pattern, pattern, len(matches), max_results)
+            output = self._format_output(
+                matches, resolved_pattern, pattern, len(matches), max_results
+            )
 
             return ToolResult(
                 success=True,
@@ -406,7 +418,7 @@ class AstGrepTool(Tool):
         resolved_pattern: str,
         original_pattern: str,
         total_matches: int,
-        max_results: int
+        max_results: int,
     ) -> str:
         """Format matches for human-readable output.
 

@@ -37,11 +37,11 @@ class VolumeStorage(WorkspaceStorage):
             def _write():
                 # Create tar archive with the file
                 tar_stream = io.BytesIO()
-                tar = tarfile.open(fileobj=tar_stream, mode='w')
+                tar = tarfile.open(fileobj=tar_stream, mode="w")
 
                 # Get path components
-                path = container_path.lstrip('/')
-                file_name = path.split('/')[-1]
+                path = container_path.lstrip("/")
+                file_name = path.split("/")[-1]
 
                 # Add file to tar
                 tarinfo = tarfile.TarInfo(name=file_name)
@@ -52,7 +52,7 @@ class VolumeStorage(WorkspaceStorage):
                 tar_stream.seek(0)
 
                 # Get directory path
-                dir_path = '/'.join(path.split('/')[:-1]) if '/' in path else ''
+                dir_path = "/".join(path.split("/")[:-1]) if "/" in path else ""
 
                 # Run temporary container to write file
                 container = self.docker_client.containers.run(
@@ -60,7 +60,7 @@ class VolumeStorage(WorkspaceStorage):
                     command=f"sh -c 'mkdir -p /{dir_path} && sleep 1'",
                     volumes={volume_name: {"bind": "/workspace", "mode": "rw"}},
                     detach=True,
-                    remove=False
+                    remove=False,
                 )
 
                 # Wait for container to start
@@ -86,14 +86,14 @@ class VolumeStorage(WorkspaceStorage):
 
         def _read():
             # Run temporary container to read file
-            path = container_path.lstrip('/')
+            path = container_path.lstrip("/")
 
             container = self.docker_client.containers.run(
                 "alpine:latest",
                 command="sh -c 'sleep 5'",
                 volumes={volume_name: {"bind": "/workspace", "mode": "ro"}},
                 detach=True,
-                remove=False
+                remove=False,
             )
 
             try:
@@ -106,7 +106,7 @@ class VolumeStorage(WorkspaceStorage):
                     tar_stream.write(chunk)
                 tar_stream.seek(0)
 
-                tar = tarfile.open(fileobj=tar_stream, mode='r')
+                tar = tarfile.open(fileobj=tar_stream, mode="r")
                 member = tar.next()
 
                 if member is None:
@@ -130,34 +130,32 @@ class VolumeStorage(WorkspaceStorage):
                 raise FileNotFoundError(f"File not found: {container_path}")
             raise
 
-    async def list_files(self, session_id: str, container_path: str = "/workspace") -> List[FileInfo]:
+    async def list_files(
+        self, session_id: str, container_path: str = "/workspace"
+    ) -> List[FileInfo]:
         """List files in a directory in the Docker volume."""
         volume_name = self._get_volume_name(session_id)
 
         def _list():
-            path = container_path.lstrip('/')
+            path = container_path.lstrip("/")
 
             # Run temporary container to list files
             result = self.docker_client.containers.run(
                 "alpine:latest",
                 command=f"sh -c 'find /{path} -type f -exec stat -c \"%n %s\" {{}} \\;'",
                 volumes={volume_name: {"bind": "/workspace", "mode": "ro"}},
-                remove=True
+                remove=True,
             )
 
             files = []
-            output = result.decode('utf-8').strip()
+            output = result.decode("utf-8").strip()
 
             if output:
-                for line in output.split('\n'):
-                    parts = line.rsplit(' ', 1)
+                for line in output.split("\n"):
+                    parts = line.rsplit(" ", 1)
                     if len(parts) == 2:
                         file_path, size_str = parts
-                        files.append(FileInfo(
-                            path=file_path,
-                            size=int(size_str),
-                            is_dir=False
-                        ))
+                        files.append(FileInfo(path=file_path, size=int(size_str), is_dir=False))
 
             return files
 
@@ -173,14 +171,14 @@ class VolumeStorage(WorkspaceStorage):
             volume_name = self._get_volume_name(session_id)
 
             def _delete():
-                path = container_path.lstrip('/')
+                path = container_path.lstrip("/")
 
                 # Run temporary container to delete file
                 self.docker_client.containers.run(
                     "alpine:latest",
                     command=f"sh -c 'rm -rf /{path}'",
                     volumes={volume_name: {"bind": "/workspace", "mode": "rw"}},
-                    remove=True
+                    remove=True,
                 )
                 return True
 
@@ -195,14 +193,14 @@ class VolumeStorage(WorkspaceStorage):
             volume_name = self._get_volume_name(session_id)
 
             def _exists():
-                path = container_path.lstrip('/')
+                path = container_path.lstrip("/")
 
                 # Run temporary container to check file
                 result = self.docker_client.containers.run(
                     "alpine:latest",
                     command=f"sh -c 'test -e /{path} && echo exists || echo notfound'",
                     volumes={volume_name: {"bind": "/workspace", "mode": "ro"}},
-                    remove=True
+                    remove=True,
                 )
 
                 return b"exists" in result
@@ -227,7 +225,7 @@ class VolumeStorage(WorkspaceStorage):
                     "alpine:latest",
                     command="sh -c 'mkdir -p /workspace/out'",
                     volumes={volume_name: {"bind": "/workspace", "mode": "rw"}},
-                    remove=True
+                    remove=True,
                 )
             except docker.errors.APIError as e:
                 if "already exists" not in str(e):
@@ -251,10 +249,7 @@ class VolumeStorage(WorkspaceStorage):
         await asyncio.to_thread(_delete)
 
     async def copy_to_workspace(
-        self,
-        session_id: str,
-        source_path: Path,
-        dest_container_path: str
+        self, session_id: str, source_path: Path, dest_container_path: str
     ) -> None:
         """Copy files from host to Docker volume."""
         volume_name = self._get_volume_name(session_id)
@@ -262,7 +257,7 @@ class VolumeStorage(WorkspaceStorage):
         def _copy():
             # Create tar archive from source
             tar_stream = io.BytesIO()
-            tar = tarfile.open(fileobj=tar_stream, mode='w')
+            tar = tarfile.open(fileobj=tar_stream, mode="w")
 
             if source_path.is_file():
                 tar.add(source_path, arcname=source_path.name)
@@ -276,8 +271,8 @@ class VolumeStorage(WorkspaceStorage):
             tar_stream.seek(0)
 
             # Get destination path
-            dest_path = dest_container_path.lstrip('/')
-            parent_path = '/'.join(dest_path.split('/')[:-1]) if '/' in dest_path else ''
+            dest_path = dest_container_path.lstrip("/")
+            parent_path = "/".join(dest_path.split("/")[:-1]) if "/" in dest_path else ""
 
             # Run temporary container to copy files
             container = self.docker_client.containers.run(
@@ -285,7 +280,7 @@ class VolumeStorage(WorkspaceStorage):
                 command=f"sh -c 'mkdir -p /{parent_path} && sleep 2'",
                 volumes={volume_name: {"bind": "/workspace", "mode": "rw"}},
                 detach=True,
-                remove=False
+                remove=False,
             )
 
             try:
@@ -310,9 +305,4 @@ class VolumeStorage(WorkspaceStorage):
             Docker volume configuration dict
         """
         volume_name = self._get_volume_name(session_id)
-        return {
-            volume_name: {
-                "bind": "/workspace",
-                "mode": "rw"
-            }
-        }
+        return {volume_name: {"bind": "/workspace", "mode": "rw"}}

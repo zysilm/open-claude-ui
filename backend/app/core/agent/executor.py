@@ -1,16 +1,16 @@
 """ReAct agent executor for autonomous task completion."""
 
 import json
-import re
 from typing import Dict, List, Any, AsyncIterator
 from pydantic import BaseModel
 
-from app.core.agent.tools.base import ToolRegistry, ToolResult
+from app.core.agent.tools.base import ToolRegistry
 from app.core.llm.provider import LLMProvider
 
 
 class AgentStep(BaseModel):
     """A single step in the agent's reasoning process."""
+
     thought: str | None = None
     action: str | None = None
     action_input: Dict[str, Any | None] = None
@@ -20,6 +20,7 @@ class AgentStep(BaseModel):
 
 class AgentResponse(BaseModel):
     """Response from the agent."""
+
     final_answer: str | None = None
     steps: List[AgentStep] = []
     error: str | None = None
@@ -172,7 +173,7 @@ When you have completed the task, provide a final answer summarizing what you di
                         if args.get("path") == file_path:
                             file_was_read = True
                             break
-                    except:
+                    except Exception:
                         pass
 
             # Also check in message content for file_read mentions
@@ -182,7 +183,9 @@ When you have completed the task, provide a final answer summarizing what you di
                 break
 
         if not file_was_read:
-            return (False, f"""You're trying to edit {file_path} without reading it first.
+            return (
+                False,
+                f"""You're trying to edit {file_path} without reading it first.
 
 This is dangerous because:
 - You don't know the current file content
@@ -191,7 +194,8 @@ This is dangerous because:
 
 Required action:
 Use file_read('{file_path}') FIRST to see the exact content, then try your edit.
-""")
+""",
+            )
 
         return (True, "")
 
@@ -211,7 +215,7 @@ Use file_read('{file_path}') FIRST to see the exact content, then try your edit.
         Yields:
             Agent steps and final response
         """
-        print(f"\n[REACT AGENT] Starting run()")
+        print("\n[REACT AGENT] Starting run()")
         print(f"  User message: {user_message[:100]}...")
         print(f"  Max iterations: {self.max_iterations}")
         print(f"  Available tools: {[t.name for t in self.tools.list_tools()]}")
@@ -233,7 +237,7 @@ Use file_read('{file_path}') FIRST to see the exact content, then try your edit.
 
             # Check for cancellation
             if cancel_event and cancel_event.is_set():
-                print(f"[REACT AGENT] Cancellation requested")
+                print("[REACT AGENT] Cancellation requested")
                 yield {
                     "type": "cancelled",
                     "content": "Response cancelled by user",
@@ -254,7 +258,7 @@ Use file_read('{file_path}') FIRST to see the exact content, then try your edit.
                 # Track which tool calls we've announced to avoid duplicate streaming events
                 announced_tool_calls = set()
 
-                print(f"[REACT AGENT] Calling LLM generate_stream...")
+                print("[REACT AGENT] Calling LLM generate_stream...")
                 chunk_count = 0
                 async for chunk in self.llm.generate_stream(
                     messages=llm_messages,
@@ -262,7 +266,7 @@ Use file_read('{file_path}') FIRST to see the exact content, then try your edit.
                 ):
                     # Check for cancellation during streaming
                     if cancel_event and cancel_event.is_set():
-                        print(f"[REACT AGENT] Cancellation during streaming")
+                        print("[REACT AGENT] Cancellation during streaming")
                         yield {
                             "type": "cancelled",
                             "content": "Response cancelled by user",
@@ -302,7 +306,9 @@ Use file_read('{file_path}') FIRST to see the exact content, then try your edit.
                             # This gives immediate feedback to the user that an action is being prepared
                             if index not in announced_tool_calls:
                                 announced_tool_calls.add(index)
-                                print(f"[REACT AGENT] Emitting action_streaming event for {function_call.get('name')}")
+                                print(
+                                    f"[REACT AGENT] Emitting action_streaming event for {function_call.get('name')}"
+                                )
                                 yield {
                                     "type": "action_streaming",
                                     "tool": function_call.get("name"),
@@ -338,40 +344,58 @@ Use file_read('{file_path}') FIRST to see the exact content, then try your edit.
                     function_args = tool_call["arguments"]
 
                     if len(tool_calls) > 1:
-                        print(f"[REACT AGENT] WARNING: LLM suggested {len(tool_calls)} tool calls, but ReAct pattern supports one per iteration. Executing first: {function_name}")
+                        print(
+                            f"[REACT AGENT] WARNING: LLM suggested {len(tool_calls)} tool calls, but ReAct pattern supports one per iteration. Executing first: {function_name}"
+                        )
 
                     if function_name and self.tools.has_tool(function_name):
                         print(f"[REACT AGENT] Executing function: {function_name}")
 
                         # Add assistant's function call to conversation for proper context
                         # This is critical so the LLM remembers what it decided to do in previous iterations
-                        messages.append({
-                            "role": "assistant",
-                            "content": full_response or None,
-                            "function_call": {
-                                "name": function_name,
-                                "arguments": function_args if isinstance(function_args, str) else json.dumps(function_args)
+                        messages.append(
+                            {
+                                "role": "assistant",
+                                "content": full_response or None,
+                                "function_call": {
+                                    "name": function_name,
+                                    "arguments": (
+                                        function_args
+                                        if isinstance(function_args, str)
+                                        else json.dumps(function_args)
+                                    ),
+                                },
                             }
-                        })
+                        )
 
                         # Parse function arguments
                         try:
-                            args = json.loads(function_args) if isinstance(function_args, str) else function_args
+                            args = (
+                                json.loads(function_args)
+                                if isinstance(function_args, str)
+                                else function_args
+                            )
                         except json.JSONDecodeError:
                             args = {}
 
                         # Validate edit_lines requires file_read first
                         if function_name == "edit_lines":
                             file_path = args.get("path", "")
-                            should_proceed, validation_msg = self._validate_before_edit(messages, file_path)
+                            should_proceed, validation_msg = self._validate_before_edit(
+                                messages, file_path
+                            )
 
                             if not should_proceed:
-                                print(f"[REACT AGENT] Validation failed for edit_lines: {file_path}")
+                                print(
+                                    f"[REACT AGENT] Validation failed for edit_lines: {file_path}"
+                                )
                                 # Add validation error to conversation
-                                messages.append({
-                                    "role": "user",
-                                    "content": validation_msg,
-                                })
+                                messages.append(
+                                    {
+                                        "role": "user",
+                                        "content": validation_msg,
+                                    }
+                                )
                                 # Continue to next iteration (don't execute the tool)
                                 continue
 
@@ -383,7 +407,9 @@ Use file_read('{file_path}') FIRST to see the exact content, then try your edit.
 
                             # Handle validation errors internally (don't show in frontend)
                             if result.is_validation_error:
-                                print(f"[REACT AGENT] Validation error for {function_name}: {result.error}")
+                                print(
+                                    f"[REACT AGENT] Validation error for {function_name}: {result.error}"
+                                )
 
                                 # Track validation retries
                                 self.validation_retry_count += 1
@@ -399,18 +425,22 @@ Use file_read('{file_path}') FIRST to see the exact content, then try your edit.
                                         f"2. Breaking the task into smaller steps\n"
                                         f"3. Carefully reviewing the tool's parameter requirements"
                                     )
-                                    messages.append({
-                                        "role": "user",
-                                        "content": f"Tool '{function_name}' validation failed: {error_with_suggestion}",
-                                    })
+                                    messages.append(
+                                        {
+                                            "role": "user",
+                                            "content": f"Tool '{function_name}' validation failed: {error_with_suggestion}",
+                                        }
+                                    )
                                     # Reset counter for next tool
                                     self.validation_retry_count = 0
                                 else:
                                     # Add validation error to conversation for LLM to learn from
-                                    messages.append({
-                                        "role": "user",
-                                        "content": f"Tool '{function_name}' validation failed (attempt {self.validation_retry_count}/{self.max_validation_retries}): {result.error}",
-                                    })
+                                    messages.append(
+                                        {
+                                            "role": "user",
+                                            "content": f"Tool '{function_name}' validation failed (attempt {self.validation_retry_count}/{self.max_validation_retries}): {result.error}",
+                                        }
+                                    )
 
                                 # Continue to next iteration (don't save as agent_action)
                                 continue
@@ -422,19 +452,26 @@ Use file_read('{file_path}') FIRST to see the exact content, then try your edit.
                             self.tool_call_history.append(function_name)
 
                             # Check for tool call loops (same tool failing repeatedly)
-                            recent_calls = self.tool_call_history[-self.max_same_tool_retries:]
-                            if len(recent_calls) == self.max_same_tool_retries and len(set(recent_calls)) == 1:
+                            recent_calls = self.tool_call_history[-self.max_same_tool_retries :]
+                            if (
+                                len(recent_calls) == self.max_same_tool_retries
+                                and len(set(recent_calls)) == 1
+                            ):
                                 # Same tool called max_same_tool_retries times in a row
-                                print(f"[REACT AGENT] Loop detected: {function_name} called {self.max_same_tool_retries} times")
+                                print(
+                                    f"[REACT AGENT] Loop detected: {function_name} called {self.max_same_tool_retries} times"
+                                )
                                 observation = (
                                     f"Error: Tool '{function_name}' has been called {self.max_same_tool_retries} times "
                                     f"consecutively without success. This suggests the current approach isn't working. "
                                     f"Please try a different tool or approach to accomplish the task."
                                 )
-                                messages.append({
-                                    "role": "user",
-                                    "content": observation,
-                                })
+                                messages.append(
+                                    {
+                                        "role": "user",
+                                        "content": observation,
+                                    }
+                                )
                                 # Clear history to allow trying again later if needed
                                 self.tool_call_history = []
                                 continue
@@ -459,7 +496,11 @@ Use file_read('{file_path}') FIRST to see the exact content, then try your edit.
                                     observation_parts.append(f"Error: {result.error}")
                                 if result.output:
                                     observation_parts.append(result.output)
-                                observation = "\n".join(observation_parts) if observation_parts else "Error: Unknown failure"
+                                observation = (
+                                    "\n".join(observation_parts)
+                                    if observation_parts
+                                    else "Error: Unknown failure"
+                                )
 
                             yield {
                                 "type": "observation",
@@ -470,33 +511,37 @@ Use file_read('{file_path}') FIRST to see the exact content, then try your edit.
                             }
 
                             # Add tool result to conversation as user message
-                            messages.append({
-                                "role": "user",
-                                "content": f"Tool '{function_name}' returned: {observation}",
-                            })
+                            messages.append(
+                                {
+                                    "role": "user",
+                                    "content": f"Tool '{function_name}' returned: {observation}",
+                                }
+                            )
 
                             # Record step
-                            steps.append(AgentStep(
-                                thought=full_response if full_response else None,
-                                action=function_name,
-                                action_input=args,
-                                observation=observation,
-                                step_number=iteration + 1,
-                            ))
+                            steps.append(
+                                AgentStep(
+                                    thought=full_response if full_response else None,
+                                    action=function_name,
+                                    action_input=args,
+                                    observation=observation,
+                                    step_number=iteration + 1,
+                                )
+                            )
 
                             # Continue loop
                             continue
 
                 # No function call - agent is providing final answer
                 if full_response:
-                    print(f"[REACT AGENT] No function call - providing final answer")
+                    print("[REACT AGENT] No function call - providing final answer")
                     print(f"[REACT AGENT] Final answer: {full_response[:100]}...")
 
                     # Chunks were already emitted during streaming above
                     return
 
                 # If we get here with no response, something went wrong
-                print(f"[REACT AGENT] ERROR: No response from LLM")
+                print("[REACT AGENT] ERROR: No response from LLM")
                 yield {
                     "type": "error",
                     "content": "Agent did not provide a response",
@@ -507,6 +552,7 @@ Use file_read('{file_path}') FIRST to see the exact content, then try your edit.
             except Exception as e:
                 print(f"[REACT AGENT] EXCEPTION: {str(e)}")
                 import traceback
+
                 traceback.print_exc()
                 yield {
                     "type": "error",

@@ -11,6 +11,7 @@ from app.core.storage.database import Base
 
 class ChatSessionStatus(str, enum.Enum):
     """Chat session status enum."""
+
     ACTIVE = "active"
     ARCHIVED = "archived"
 
@@ -30,10 +31,14 @@ class ChatSession(Base):
     title_auto_generated = Column(String(1), default="N", nullable=False)  # Y/N flag
 
     # Environment settings (set up dynamically by agent)
-    environment_type = Column(String(50), nullable=True)  # e.g., "python3.11", "nodejs", null if not set up
+    environment_type = Column(
+        String(50), nullable=True
+    )  # e.g., "python3.11", "nodejs", null if not set up
     environment_config = Column(JSON, default=dict, nullable=True)  # packages, env vars, etc.
 
     # Relationships
     project = relationship("Project", back_populates="chat_sessions")
     messages = relationship("Message", back_populates="chat_session", cascade="all, delete-orphan")
-    content_blocks = relationship("ContentBlock", back_populates="chat_session", cascade="all, delete-orphan")
+    content_blocks = relationship(
+        "ContentBlock", back_populates="chat_session", cascade="all, delete-orphan"
+    )

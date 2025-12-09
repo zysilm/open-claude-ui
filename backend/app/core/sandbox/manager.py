@@ -1,7 +1,5 @@
 """Container pool manager for efficient sandbox management."""
 
-import os
-import asyncio
 from typing import Dict
 from pathlib import Path
 import docker
@@ -47,7 +45,6 @@ class ContainerPoolManager:
             "cpp": "opencodex-env-cpp:latest",
         }
 
-
     def _ensure_image_exists(self, env_type: str) -> str:
         """
         Ensure Docker image exists, build if necessary.
@@ -81,7 +78,7 @@ class ContainerPoolManager:
                     path=str(dockerfile_path.parent),
                     dockerfile=str(dockerfile_path.name),
                     tag=image_name,
-                    rm=True
+                    rm=True,
                 )
                 print(f"Successfully built image: {image_name}")
                 return image_name
@@ -92,8 +89,8 @@ class ContainerPoolManager:
         self,
         session_id: str,
         project_id: str,
-        env_type: str = "python3.11",
-        environment_config: Dict | None = None
+        env_type: str = "python3.13",
+        environment_config: Dict | None = None,
     ) -> SandboxContainer:
         """
         Create a new container for a session.
@@ -184,7 +181,9 @@ class ContainerPoolManager:
                         container.exec_run(["bash", "-c", install_cmd])
 
             # For volume/S3 storage, workspace_path is not directly accessible from host
-            workspace_display = f"volume://{session_id}" if hasattr(self.storage, 'get_volume_name') else "N/A"
+            workspace_display = (
+                f"volume://{session_id}" if hasattr(self.storage, "get_volume_name") else "N/A"
+            )
             sandbox = SandboxContainer(container, workspace_display)
             self.active_containers[session_id] = sandbox
 

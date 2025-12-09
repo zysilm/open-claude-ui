@@ -8,8 +8,6 @@ read-only into session containers at /workspace/project_files/.
 import io
 import tarfile
 import asyncio
-import mimetypes
-from pathlib import Path
 from typing import List, Optional
 import docker
 from docker.errors import NotFound as DockerNotFound
@@ -80,7 +78,7 @@ class ProjectVolumeStorage:
 
             # Create tar archive with the file
             tar_stream = io.BytesIO()
-            with tarfile.open(fileobj=tar_stream, mode='w') as tar:
+            with tarfile.open(fileobj=tar_stream, mode="w") as tar:
                 tarinfo = tarfile.TarInfo(name=filename)
                 tarinfo.size = len(content)
                 tar.addfile(tarinfo, io.BytesIO(content))
@@ -92,7 +90,7 @@ class ProjectVolumeStorage:
                 command="sh -c 'sleep 2'",
                 volumes={volume_name: {"bind": "/data", "mode": "rw"}},
                 detach=True,
-                remove=False
+                remove=False,
             )
 
             try:
@@ -129,7 +127,7 @@ class ProjectVolumeStorage:
                 command="sh -c 'sleep 5'",
                 volumes={volume_name: {"bind": "/data", "mode": "ro"}},
                 detach=True,
-                remove=False
+                remove=False,
             )
 
             try:
@@ -141,7 +139,7 @@ class ProjectVolumeStorage:
                     tar_stream.write(chunk)
                 tar_stream.seek(0)
 
-                with tarfile.open(fileobj=tar_stream, mode='r') as tar:
+                with tarfile.open(fileobj=tar_stream, mode="r") as tar:
                     member = tar.next()
                     if member is None:
                         raise FileNotFoundError(f"File not found: {filename}")
@@ -183,24 +181,26 @@ class ProjectVolumeStorage:
                     "alpine:latest",
                     command="sh -c 'find /data -maxdepth 1 -type f -exec stat -c \"%n %s\" {} \\;'",
                     volumes={volume_name: {"bind": "/data", "mode": "ro"}},
-                    remove=True
+                    remove=True,
                 )
 
                 files = []
-                output = result.decode('utf-8').strip()
+                output = result.decode("utf-8").strip()
 
                 if output:
-                    for line in output.split('\n'):
-                        parts = line.rsplit(' ', 1)
+                    for line in output.split("\n"):
+                        parts = line.rsplit(" ", 1)
                         if len(parts) == 2:
                             file_path, size_str = parts
                             # file_path is like /data/filename.ext
-                            filename = file_path.split('/')[-1]
-                            files.append(FileInfo(
-                                path=f"/workspace/project_files/{filename}",
-                                size=int(size_str),
-                                is_dir=False
-                            ))
+                            filename = file_path.split("/")[-1]
+                            files.append(
+                                FileInfo(
+                                    path=f"/workspace/project_files/{filename}",
+                                    size=int(size_str),
+                                    is_dir=False,
+                                )
+                            )
 
                 return files
             except Exception as e:
@@ -227,7 +227,7 @@ class ProjectVolumeStorage:
                     "alpine:latest",
                     command=f"sh -c 'rm -f /data/{filename}'",
                     volumes={volume_name: {"bind": "/data", "mode": "rw"}},
-                    remove=True
+                    remove=True,
                 )
                 return True
             except Exception as e:
@@ -278,7 +278,7 @@ class ProjectVolumeStorage:
         return {
             volume_name: {
                 "bind": "/workspace/project_files",
-                "mode": "ro"  # Read-only for session containers
+                "mode": "ro",  # Read-only for session containers
             }
         }
 
@@ -308,7 +308,7 @@ _project_volume_storage: Optional[ProjectVolumeStorage] = None
 
 
 def get_project_volume_storage(
-    docker_client: Optional[docker.DockerClient] = None
+    docker_client: Optional[docker.DockerClient] = None,
 ) -> ProjectVolumeStorage:
     """Get global project volume storage instance.
 

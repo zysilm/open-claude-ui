@@ -86,6 +86,6 @@ class ThinkTool(Tool):
         # allowing the agent to reference its reasoning in subsequent steps
         return ToolResult(
             success=True,
-            output=f"Thought recorded. Continue with your plan.",
-            metadata={"thought_length": len(thought)}
+            output="Thought recorded. Continue with your plan.",
+            metadata={"thought_length": len(thought)},
         )

@@ -9,6 +9,7 @@ from app.models.database.content_block import ContentBlockType, ContentBlockAuth
 
 class ContentBlockBase(BaseModel):
     """Base content block schema."""
+
     block_type: ContentBlockType
     author: ContentBlockAuthor
     content: Dict[str, Any] = Field(default_factory=dict)
@@ -17,17 +18,20 @@ class ContentBlockBase(BaseModel):
 
 class ContentBlockCreate(ContentBlockBase):
     """Schema for creating a content block."""
+
     parent_block_id: Optional[str] = None
 
 
 class ContentBlockUpdate(BaseModel):
     """Schema for updating a content block."""
+
     content: Optional[Dict[str, Any]] = None
     block_metadata: Optional[Dict[str, Any]] = None
 
 
 class ContentBlockResponse(BaseModel):
     """Schema for content block response."""
+
     id: str
     chat_session_id: str
     sequence_number: int
@@ -45,6 +49,7 @@ class ContentBlockResponse(BaseModel):
 
 class ContentBlockListResponse(BaseModel):
     """Schema for content block list response."""
+
     blocks: List[ContentBlockResponse]
     total: int
 
@@ -52,11 +57,13 @@ class ContentBlockListResponse(BaseModel):
 # Convenience schemas for specific block types
 class TextContent(BaseModel):
     """Content structure for text blocks."""
+
     text: str
 
 
 class ToolCallContent(BaseModel):
     """Content structure for tool_call blocks."""
+
     tool_name: str
     arguments: Dict[str, Any] = Field(default_factory=dict)
     status: str = "pending"  # pending, running, complete, error
@@ -64,6 +71,7 @@ class ToolCallContent(BaseModel):
 
 class ToolResultContent(BaseModel):
     """Content structure for tool_result blocks."""
+
     tool_name: str
     result: Optional[str] = None
     success: bool = True

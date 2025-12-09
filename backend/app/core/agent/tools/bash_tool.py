@@ -47,10 +47,7 @@ class BashTool(Tool):
                 f"--- Execution successful. Proceed with next step or report completion. ---"
             )
         else:
-            return (
-                f"[ERROR] Exit code {exit_code}\n"
-                f"{combined_output}"
-            )
+            return f"[ERROR] Exit code {exit_code}\n" f"{combined_output}"
 
     @property
     def name(self) -> str:
@@ -94,11 +91,7 @@ class BashTool(Tool):
         ]
 
     async def execute(
-        self,
-        command: str,
-        workdir: str = "/workspace/out",
-        timeout: int = 30,
-        **kwargs
+        self, command: str, workdir: str = "/workspace/out", timeout: int = 30, **kwargs
     ) -> ToolResult:
         """Execute a bash command in the sandbox.
 

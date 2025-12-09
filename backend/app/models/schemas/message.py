@@ -10,17 +10,20 @@ from app.models.database.agent_action import AgentActionStatus
 
 class MessageBase(BaseModel):
     """Base message schema."""
+
     content: str = Field(..., min_length=1)
     message_metadata: Dict[str, Any | None] = Field(default_factory=dict)
 
 
 class MessageCreate(MessageBase):
     """Schema for creating a message."""
+
     role: MessageRole = MessageRole.USER
 
 
 class AgentActionResponse(BaseModel):
     """Schema for agent action response."""
+
     id: str
     action_type: str
     action_input: Dict[str, Any]
@@ -35,6 +38,7 @@ class AgentActionResponse(BaseModel):
 
 class MessageResponse(BaseModel):
     """Schema for message response."""
+
     id: str
     chat_session_id: str
     role: MessageRole
@@ -49,5 +53,6 @@ class MessageResponse(BaseModel):
 
 class MessageListResponse(BaseModel):
     """Schema for message list response."""
+
     messages: list[MessageResponse]
     total: int

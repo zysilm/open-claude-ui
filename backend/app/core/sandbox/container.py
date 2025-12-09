@@ -2,8 +2,7 @@
 
 import os
 import asyncio
-from typing import Dict, Any, Tuple
-import docker
+from typing import Tuple
 from docker.models.containers import Container as DockerContainer
 
 
@@ -32,10 +31,7 @@ class SandboxContainer:
             return False
 
     async def execute(
-        self,
-        command: str,
-        workdir: str = "/workspace",
-        timeout: int = 30
+        self, command: str, workdir: str = "/workspace", timeout: int = 30
     ) -> Tuple[int, str, str]:
         """
         Execute a command in the container.
@@ -66,11 +62,7 @@ class SandboxContainer:
         except Exception as e:
             return 1, "", f"Execution error: {str(e)}"
 
-    async def execute_stream(
-        self,
-        command: str,
-        workdir: str = "/workspace"
-    ):
+    async def execute_stream(self, command: str, workdir: str = "/workspace"):
         """
         Execute a command and stream output.
 
@@ -118,10 +110,10 @@ class SandboxContainer:
             # Run blocking I/O in thread pool
             def _write():
                 tar_stream = io.BytesIO()
-                tar = tarfile.open(fileobj=tar_stream, mode='w')
+                tar = tarfile.open(fileobj=tar_stream, mode="w")
 
                 # Add file to tar
-                file_data = content.encode('utf-8')
+                file_data = content.encode("utf-8")
                 tarinfo = tarfile.TarInfo(name=os.path.basename(container_path))
                 tarinfo.size = len(file_data)
                 tar.addfile(tarinfo, io.BytesIO(file_data))
@@ -129,10 +121,7 @@ class SandboxContainer:
 
                 # Put tar archive in container
                 tar_stream.seek(0)
-                self.container.put_archive(
-                    path=os.path.dirname(container_path),
-                    data=tar_stream
-                )
+                self.container.put_archive(path=os.path.dirname(container_path), data=tar_stream)
                 return True
 
             return await asyncio.to_thread(_write)
@@ -179,16 +168,16 @@ class SandboxContainer:
 
                         # Try to decode as UTF-8 text
                         try:
-                            content = raw_bytes.decode('utf-8')
+                            content = raw_bytes.decode("utf-8")
                             return content
                         except UnicodeDecodeError:
                             # Binary file - encode as base64 with data URI
                             # Guess MIME type from file extension
                             mime_type, _ = mimetypes.guess_type(container_path)
                             if mime_type is None:
-                                mime_type = 'application/octet-stream'
+                                mime_type = "application/octet-stream"
 
-                            b64_data = base64.b64encode(raw_bytes).decode('ascii')
+                            b64_data = base64.b64encode(raw_bytes).decode("ascii")
                             return f"data:{mime_type};base64,{b64_data}"
 
                 return None
@@ -197,6 +186,7 @@ class SandboxContainer:
 
         except Exception as e:
             import traceback
+
             error_details = traceback.format_exc()
             print(f"Error reading file: {e}")
             print(f"Full traceback:\n{error_details}")
@@ -214,11 +204,9 @@ class SandboxContainer:
             List of file paths
         """
         try:
-            exit_code, stdout, stderr = asyncio.run(
-                self.execute(f"find {container_path} -type f")
-            )
+            exit_code, stdout, stderr = asyncio.run(self.execute(f"find {container_path} -type f"))
             if exit_code == 0:
-                return [f.strip() for f in stdout.split('\n') if f.strip()]
+                return [f.strip() for f in stdout.split("\n") if f.strip()]
             return []
         except Exception:
             return []

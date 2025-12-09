@@ -9,6 +9,7 @@ from datetime import datetime
 @dataclass
 class AgentTask:
     """Represents a running agent task."""
+
     task: asyncio.Task
     session_id: str
     message_id: str
@@ -30,11 +31,7 @@ class AgentTaskRegistry:
         self._lock = asyncio.Lock()
 
     async def register_task(
-        self,
-        session_id: str,
-        message_id: str,
-        task: asyncio.Task,
-        cancel_event: asyncio.Event
+        self, session_id: str, message_id: str, task: asyncio.Task, cancel_event: asyncio.Event
     ) -> None:
         """Register a new agent task."""
         async with self._lock:
@@ -51,7 +48,7 @@ class AgentTaskRegistry:
                 message_id=message_id,
                 cancel_event=cancel_event,
                 created_at=datetime.utcnow(),
-                status='running'
+                status="running",
             )
 
     async def get_task(self, session_id: str) -> Optional[AgentTask]:
@@ -67,11 +64,11 @@ class AgentTaskRegistry:
                 if not agent_task.task.done():
                     agent_task.cancel_event.set()
                     agent_task.task.cancel()
-                    agent_task.status = 'cancelled'
+                    agent_task.status = "cancelled"
                     return True
             return False
 
-    async def mark_completed(self, session_id: str, status: str = 'completed') -> None:
+    async def mark_completed(self, session_id: str, status: str = "completed") -> None:
         """Mark a task as completed."""
         async with self._lock:
             if session_id in self._tasks:

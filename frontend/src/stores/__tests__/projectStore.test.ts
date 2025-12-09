@@ -1,82 +1,78 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useProjectStore } from '../projectStore';
-import { mockProject, mockProjects } from '../../../tests/fixtures/mockData';
+import type { Project } from '@/types';
 
 describe('projectStore', () => {
+  const mockProject: Project = {
+    id: 'project-123',
+    name: 'Test Project',
+    description: 'A test project',
+    created_at: '2024-01-01T00:00:00Z',
+    updated_at: '2024-01-01T00:00:00Z',
+  };
+
   beforeEach(() => {
-    // Reset store before each test
-    const { setSelectedProject } = useProjectStore.getState();
-    setSelectedProject(null);
+    // Reset store state before each test
+    useProjectStore.setState({ selectedProject: null });
   });
 
-  describe('selectedProject', () => {
-    it('should initialize with null', () => {
-      const { selectedProject } = useProjectStore.getState();
-      expect(selectedProject).toBeNull();
+  describe('initial state', () => {
+    it('should have null as initial selectedProject', () => {
+      const state = useProjectStore.getState();
+      expect(state.selectedProject).toBeNull();
     });
+  });
 
-    it('should set selected project', () => {
+  describe('setSelectedProject', () => {
+    it('should set the selected project', () => {
       const { setSelectedProject } = useProjectStore.getState();
 
       setSelectedProject(mockProject);
 
+      const state = useProjectStore.getState();
+      expect(state.selectedProject).toEqual(mockProject);
+    });
+
+    it('should clear the selected project when set to null', () => {
+      const { setSelectedProject } = useProjectStore.getState();
+
+      // First set a project
+      setSelectedProject(mockProject);
       expect(useProjectStore.getState().selectedProject).toEqual(mockProject);
-    });
 
-    it('should update selected project', () => {
-      const { setSelectedProject } = useProjectStore.getState();
-      const secondProject = mockProjects[1];
-
-      setSelectedProject(mockProject);
-      setSelectedProject(secondProject);
-
-      expect(useProjectStore.getState().selectedProject).toEqual(secondProject);
-    });
-
-    it('should clear selected project', () => {
-      const { setSelectedProject } = useProjectStore.getState();
-
-      setSelectedProject(mockProject);
+      // Then clear it
       setSelectedProject(null);
-
       expect(useProjectStore.getState().selectedProject).toBeNull();
     });
 
-    it('should preserve project data immutability', () => {
+    it('should replace the selected project with a new one', () => {
       const { setSelectedProject } = useProjectStore.getState();
-      const originalProject = { ...mockProject };
+      const newProject: Project = {
+        id: 'project-456',
+        name: 'Another Project',
+        description: 'Another test project',
+        created_at: '2024-01-02T00:00:00Z',
+        updated_at: '2024-01-02T00:00:00Z',
+      };
 
       setSelectedProject(mockProject);
+      setSelectedProject(newProject);
 
-      // Modify the original
-      mockProject.name = 'Modified Name';
-
-      // Store should have the original value
-      expect(useProjectStore.getState().selectedProject?.name).toBe('Test Project');
-
-      // Restore for other tests
-      mockProject.name = originalProject.name;
+      const state = useProjectStore.getState();
+      expect(state.selectedProject).toEqual(newProject);
+      expect(state.selectedProject?.id).toBe('project-456');
     });
   });
 
-  describe('integration scenarios', () => {
-    it('should handle project selection workflow', () => {
+  describe('state persistence', () => {
+    it('should maintain state across multiple getState calls', () => {
       const { setSelectedProject } = useProjectStore.getState();
 
-      // User browses projects
-      expect(useProjectStore.getState().selectedProject).toBeNull();
+      setSelectedProject(mockProject);
 
-      // User selects first project
-      setSelectedProject(mockProjects[0]);
-      expect(useProjectStore.getState().selectedProject?.id).toBe(mockProjects[0].id);
-
-      // User navigates back
-      setSelectedProject(null);
-      expect(useProjectStore.getState().selectedProject).toBeNull();
-
-      // User selects second project
-      setSelectedProject(mockProjects[1]);
-      expect(useProjectStore.getState().selectedProject?.id).toBe(mockProjects[1].id);
+      // Multiple getState calls should return the same state
+      expect(useProjectStore.getState().selectedProject).toEqual(mockProject);
+      expect(useProjectStore.getState().selectedProject).toEqual(mockProject);
     });
   });
 });

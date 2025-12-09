@@ -11,6 +11,7 @@ from app.core.storage.database import Base
 
 class FileType(str, enum.Enum):
     """File type enum."""
+
     INPUT = "input"
     OUTPUT = "output"
 

@@ -34,9 +34,7 @@ class SetupEnvironmentTool(Tool):
             "Set up a sandbox environment for code execution. **Call this FIRST** before using "
             "bash, file_read, file_write, edit, or search tools. "
             "Choose the appropriate environment based on the user's task:\n\n"
-            "- **python3.11**: Python 3.11 (recommended for general purpose, data science, ML, web scraping)\n"
-            "- **python3.12**: Python 3.12 (latest Python features, async improvements)\n"
-            "- **python3.13**: Python 3.13 (experimental, bleeding edge)\n"
+            "- **python3.13**: Python 3.13 (RECOMMENDED - latest stable Python for general purpose, data science, ML, web scraping)\n"
             "- **nodejs**: Node.js (JavaScript/TypeScript development, web apps, React/Vue/Angular)\n"
             "- **cpp**: C++ (systems programming, performance-critical code, compilation)\n\n"
             "Once the environment is set up, you can use file and bash tools to work in it. "
@@ -51,7 +49,7 @@ class SetupEnvironmentTool(Tool):
                 type="string",
                 description=(
                     "Type of environment to set up. Must be one of: "
-                    "'python3.11', 'python3.12', 'python3.13', 'nodejs', 'cpp'"
+                    "'python3.13' (recommended), 'nodejs', 'cpp'"
                 ),
                 required=True,
             ),
@@ -67,10 +65,7 @@ class SetupEnvironmentTool(Tool):
         ]
 
     async def execute(
-        self,
-        environment_type: str,
-        reason: str | None = None,
-        **kwargs
+        self, environment_type: str, reason: str | None = None, **kwargs
     ) -> ToolResult:
         """Set up the sandbox environment.
 
@@ -83,7 +78,7 @@ class SetupEnvironmentTool(Tool):
         """
         try:
             # Validate environment type
-            valid_types = ["python3.11", "python3.12", "python3.13", "nodejs", "cpp"]
+            valid_types = ["python3.13", "nodejs", "cpp"]
             if environment_type not in valid_types:
                 return ToolResult(
                     success=False,
@@ -124,10 +119,7 @@ class SetupEnvironmentTool(Tool):
             update_stmt = (
                 update(ChatSession)
                 .where(ChatSession.id == self._session_id)
-                .values(
-                    environment_type=environment_type,
-                    environment_config={}
-                )
+                .values(environment_type=environment_type, environment_config={})
             )
             await self._db.execute(update_stmt)
             await self._db.commit()
@@ -137,13 +129,13 @@ class SetupEnvironmentTool(Tool):
                 self._session_id,
                 session.project_id,  # Project volume mounted at /workspace/project_files
                 environment_type,
-                {}  # environment_config
+                {},  # environment_config
             )
 
             # Build success message
             output_parts = [
-                f"✓ Sandbox environment set up successfully!",
-                f"",
+                "✓ Sandbox environment set up successfully!",
+                "",
                 f"Environment: {environment_type}",
                 f"Container ID: {container.container.id[:12]}",
                 f"Workspace: {container.workspace_path}",

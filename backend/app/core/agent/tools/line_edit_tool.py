@@ -2,7 +2,6 @@
 
 import ast
 from typing import List, Optional, Type
-from pathlib import Path
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 from app.core.agent.tools.base import Tool, ToolParameter, ToolResult
@@ -35,7 +34,8 @@ class LineEditInput(BaseModel):
         default=None, description="End line number (inclusive). Required for replace/delete."
     )
     insert_line: Optional[int] = Field(
-        default=None, description="Line number after which to insert (0 = beginning). Required for insert."
+        default=None,
+        description="Line number after which to insert (0 = beginning). Required for insert.",
     )
     new_content: Optional[str] = Field(
         default=None, description="New content to insert/replace. Required for replace/insert."
@@ -221,12 +221,14 @@ class LineEditTool(Tool):
             new_content_lines = []
 
             if command == "replace":
-                result = self._validate_replace_params(start_line, end_line, new_content, total_lines)
+                result = self._validate_replace_params(
+                    start_line, end_line, new_content, total_lines
+                )
                 if result:
                     return result
 
                 # Capture old content before replacement
-                old_content_lines = lines[start_line - 1:end_line]
+                old_content_lines = lines[start_line - 1 : end_line]
 
                 # Apply auto-indent if enabled
                 if auto_indent and new_content:
@@ -256,7 +258,7 @@ class LineEditTool(Tool):
                     return result
 
                 # Capture content being deleted
-                old_content_lines = lines[start_line - 1:end_line]
+                old_content_lines = lines[start_line - 1 : end_line]
                 new_lines = self._delete_lines(lines, start_line, end_line)
                 action_desc = f"Deleted lines {start_line}-{end_line}"
 
@@ -319,9 +321,13 @@ class LineEditTool(Tool):
                 added_count = len(new_content_lines)
                 if removed_count != added_count:
                     output_parts.append("")
-                    output_parts.append(f"NOTE: Removed {removed_count} line(s), added {added_count} line(s).")
+                    output_parts.append(
+                        f"NOTE: Removed {removed_count} line(s), added {added_count} line(s)."
+                    )
                     if removed_count > added_count:
-                        output_parts.append("      If unintended, you may have specified too large a line range.")
+                        output_parts.append(
+                            "      If unintended, you may have specified too large a line range."
+                        )
 
             return ToolResult(
                 success=True,
@@ -454,9 +460,7 @@ class LineEditTool(Tool):
             )
         return None
 
-    def _replace_lines(
-        self, lines: List[str], start: int, end: int, new_content: str
-    ) -> List[str]:
+    def _replace_lines(self, lines: List[str], start: int, end: int, new_content: str) -> List[str]:
         """Replace lines[start-1:end] with new_content.
 
         Args:

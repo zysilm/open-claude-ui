@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 class AgentTemplate(BaseModel):
     """Agent configuration template."""
+
     id: str
     name: str
     description: str
@@ -133,18 +134,22 @@ AGENT_TEMPLATES = {
         name="Python Developer",
         description="Python development specialist with full tool access",
         agent_type="code_agent",
-        environment_type="python3.11",
-        environment_config={
-            "packages": ["requests", "pandas", "numpy", "pytest"]
-        },
+        environment_type="python3.13",
+        environment_config={"packages": ["requests", "pandas", "numpy", "pytest"]},
         enabled_tools=["bash", "file_read", "file_write", "edit_lines", "search", "think"],
         llm_provider="openai",
         llm_model="gpt-4o-mini",
-        llm_config={
-            "temperature": 0.7,
-            "max_tokens": 16384
-        },
-        system_instructions=_CORE_IDENTITY + _SECURITY_BOUNDARIES + _TONE_AND_STYLE + _TASK_EXECUTION_STRATEGY + _FILE_EDITING_CRITICAL + _VISUALIZATION_DISPLAY + _EXECUTION_RESULT_INTERPRETATION + _DEBUGGING_STRATEGY + _VERIFICATION_BEFORE_COMPLETION + """
+        llm_config={"temperature": 0.7, "max_tokens": 16384},
+        system_instructions=_CORE_IDENTITY
+        + _SECURITY_BOUNDARIES
+        + _TONE_AND_STYLE
+        + _TASK_EXECUTION_STRATEGY
+        + _FILE_EDITING_CRITICAL
+        + _VISUALIZATION_DISPLAY
+        + _EXECUTION_RESULT_INTERPRETATION
+        + _DEBUGGING_STRATEGY
+        + _VERIFICATION_BEFORE_COMPLETION
+        + """
 
 ## Python-Specific Standards
 
@@ -169,26 +174,28 @@ AGENT_TEMPLATES = {
 - Write modular, reusable functions (DRY principle)
 - Prefer composition over inheritance
 - Use context managers for resource management
-- Use secrets module for generating tokens/passwords"""
+- Use secrets module for generating tokens/passwords""",
     ),
-
     "node_dev": AgentTemplate(
         id="node_dev",
         name="Node.js Developer",
         description="Node.js and JavaScript/TypeScript development specialist",
         agent_type="code_agent",
         environment_type="node20",
-        environment_config={
-            "packages": ["typescript", "eslint", "jest"]
-        },
+        environment_config={"packages": ["typescript", "eslint", "jest"]},
         enabled_tools=["bash", "file_read", "file_write", "edit_lines", "search", "think"],
         llm_provider="openai",
         llm_model="gpt-4o-mini",
-        llm_config={
-            "temperature": 0.7,
-            "max_tokens": 16384
-        },
-        system_instructions=_CORE_IDENTITY + _SECURITY_BOUNDARIES + _TONE_AND_STYLE + _TASK_EXECUTION_STRATEGY + _FILE_EDITING_CRITICAL + _EXECUTION_RESULT_INTERPRETATION + _DEBUGGING_STRATEGY + _VERIFICATION_BEFORE_COMPLETION + """
+        llm_config={"temperature": 0.7, "max_tokens": 16384},
+        system_instructions=_CORE_IDENTITY
+        + _SECURITY_BOUNDARIES
+        + _TONE_AND_STYLE
+        + _TASK_EXECUTION_STRATEGY
+        + _FILE_EDITING_CRITICAL
+        + _EXECUTION_RESULT_INTERPRETATION
+        + _DEBUGGING_STRATEGY
+        + _VERIFICATION_BEFORE_COMPLETION
+        + """
 
 ## JavaScript/TypeScript Standards
 
@@ -216,26 +223,30 @@ AGENT_TEMPLATES = {
 **Security:**
 - Sanitize user inputs to prevent XSS
 - Never use eval() or Function() on untrusted input
-- Validate environment variables at startup"""
+- Validate environment variables at startup""",
     ),
-
     "data_analyst": AgentTemplate(
         id="data_analyst",
         name="Data Analyst",
         description="Data analysis and visualization specialist",
         agent_type="code_agent",
-        environment_type="python3.11",
+        environment_type="python3.13",
         environment_config={
             "packages": ["pandas", "numpy", "matplotlib", "seaborn", "jupyter", "scikit-learn"]
         },
         enabled_tools=["bash", "file_read", "file_write", "edit_lines", "search", "think"],
         llm_provider="openai",
         llm_model="gpt-4o-mini",
-        llm_config={
-            "temperature": 0.5,
-            "max_tokens": 16384
-        },
-        system_instructions=_CORE_IDENTITY + _SECURITY_BOUNDARIES + _TONE_AND_STYLE + _FILE_EDITING_CRITICAL + _VISUALIZATION_DISPLAY + _EXECUTION_RESULT_INTERPRETATION + _DEBUGGING_STRATEGY + _VERIFICATION_BEFORE_COMPLETION + """
+        llm_config={"temperature": 0.5, "max_tokens": 16384},
+        system_instructions=_CORE_IDENTITY
+        + _SECURITY_BOUNDARIES
+        + _TONE_AND_STYLE
+        + _FILE_EDITING_CRITICAL
+        + _VISUALIZATION_DISPLAY
+        + _EXECUTION_RESULT_INTERPRETATION
+        + _DEBUGGING_STRATEGY
+        + _VERIFICATION_BEFORE_COMPLETION
+        + """
 
 ## Data Analysis Workflow
 
@@ -269,26 +280,27 @@ AGENT_TEMPLATES = {
 ## Reproducibility
 
 - Set random seeds for reproducible results
-- Save intermediate results and processed datasets"""
+- Save intermediate results and processed datasets""",
     ),
-
     "script_writer": AgentTemplate(
         id="script_writer",
         name="Script Writer",
         description="Automation and scripting specialist",
         agent_type="code_agent",
-        environment_type="python3.11",
-        environment_config={
-            "packages": ["requests", "beautifulsoup4", "selenium"]
-        },
+        environment_type="python3.13",
+        environment_config={"packages": ["requests", "beautifulsoup4", "selenium"]},
         enabled_tools=["bash", "file_read", "file_write", "search", "think"],
         llm_provider="openai",
         llm_model="gpt-4o-mini",
-        llm_config={
-            "temperature": 0.6,
-            "max_tokens": 16384
-        },
-        system_instructions=_CORE_IDENTITY + _SECURITY_BOUNDARIES + _TONE_AND_STYLE + _TASK_EXECUTION_STRATEGY + _EXECUTION_RESULT_INTERPRETATION + _DEBUGGING_STRATEGY + _VERIFICATION_BEFORE_COMPLETION + """
+        llm_config={"temperature": 0.6, "max_tokens": 16384},
+        system_instructions=_CORE_IDENTITY
+        + _SECURITY_BOUNDARIES
+        + _TONE_AND_STYLE
+        + _TASK_EXECUTION_STRATEGY
+        + _EXECUTION_RESULT_INTERPRETATION
+        + _DEBUGGING_STRATEGY
+        + _VERIFICATION_BEFORE_COMPLETION
+        + """
 
 ## Scripting Standards
 
@@ -311,24 +323,23 @@ AGENT_TEMPLATES = {
 
 - Implement retry logic with exponential backoff
 - Save progress checkpoints for long-running tasks
-- Include timing/performance metrics in logs"""
+- Include timing/performance metrics in logs""",
     ),
-
     "code_reviewer": AgentTemplate(
         id="code_reviewer",
         name="Code Reviewer",
         description="Code review and analysis specialist (read-only)",
         agent_type="code_agent",
-        environment_type="python3.11",
+        environment_type="python3.13",
         environment_config={},
         enabled_tools=["bash", "file_read", "search"],  # Read-only for safety
         llm_provider="openai",
         llm_model="gpt-4o-mini",
-        llm_config={
-            "temperature": 0.3,
-            "max_tokens": 16384
-        },
-        system_instructions=_CORE_IDENTITY + _SECURITY_BOUNDARIES + _TONE_AND_STYLE + """
+        llm_config={"temperature": 0.3, "max_tokens": 16384},
+        system_instructions=_CORE_IDENTITY
+        + _SECURITY_BOUNDARIES
+        + _TONE_AND_STYLE
+        + """
 
 ## Review Workflow
 
@@ -365,26 +376,28 @@ AGENT_TEMPLATES = {
 - Explain WHY something is problematic, not just WHAT
 - Provide code examples of suggested fixes
 - Classify issues as CRITICAL, HIGH, MEDIUM, or LOW priority
-- Acknowledge good practices when present"""
+- Acknowledge good practices when present""",
     ),
-
     "test_writer": AgentTemplate(
         id="test_writer",
         name="Test Writer",
         description="Unit and integration test specialist",
         agent_type="code_agent",
-        environment_type="python3.11",
-        environment_config={
-            "packages": ["pytest", "pytest-cov", "pytest-mock"]
-        },
+        environment_type="python3.13",
+        environment_config={"packages": ["pytest", "pytest-cov", "pytest-mock"]},
         enabled_tools=["bash", "file_read", "file_write", "edit_lines", "search", "think"],
         llm_provider="openai",
         llm_model="gpt-4o-mini",
-        llm_config={
-            "temperature": 0.5,
-            "max_tokens": 16384
-        },
-        system_instructions=_CORE_IDENTITY + _SECURITY_BOUNDARIES + _TONE_AND_STYLE + _TASK_EXECUTION_STRATEGY + _FILE_EDITING_CRITICAL + _EXECUTION_RESULT_INTERPRETATION + _DEBUGGING_STRATEGY + _VERIFICATION_BEFORE_COMPLETION + """
+        llm_config={"temperature": 0.5, "max_tokens": 16384},
+        system_instructions=_CORE_IDENTITY
+        + _SECURITY_BOUNDARIES
+        + _TONE_AND_STYLE
+        + _TASK_EXECUTION_STRATEGY
+        + _FILE_EDITING_CRITICAL
+        + _EXECUTION_RESULT_INTERPRETATION
+        + _DEBUGGING_STRATEGY
+        + _VERIFICATION_BEFORE_COMPLETION
+        + """
 
 ## Test Workflow
 
@@ -423,48 +436,52 @@ AGENT_TEMPLATES = {
 
 - Aim for 80%+ code coverage, 100% for critical paths
 - Test all public functions and methods
-- Test error handling: invalid inputs, exceptions, timeouts"""
+- Test error handling: invalid inputs, exceptions, timeouts""",
     ),
-
     "minimal": AgentTemplate(
         id="minimal",
         name="Minimal Agent",
         description="Minimal configuration for simple read-only tasks",
         agent_type="code_agent",
-        environment_type="python3.11",
+        environment_type="python3.13",
         environment_config={},
         enabled_tools=["bash", "file_read", "search"],
         llm_provider="openai",
         llm_model="gpt-4o-mini",
-        llm_config={
-            "temperature": 0.7,
-            "max_tokens": 16384
-        },
-        system_instructions=_CORE_IDENTITY + _SECURITY_BOUNDARIES + _TONE_AND_STYLE + """
+        llm_config={"temperature": 0.7, "max_tokens": 16384},
+        system_instructions=_CORE_IDENTITY
+        + _SECURITY_BOUNDARIES
+        + _TONE_AND_STYLE
+        + """
 
 ## Approach
 
 - Search existing code before answering questions
 - Provide concise, actionable responses
 - Cite specific file/line references when relevant
-- Read-only access - cannot modify files"""
+- Read-only access - cannot modify files""",
     ),
-
     "default": AgentTemplate(
         id="default",
         name="Default",
         description="Comprehensive general-purpose coding agent",
         agent_type="code_agent",
-        environment_type="python3.11",
+        environment_type="python3.13",
         environment_config={},
         enabled_tools=["bash", "file_read", "file_write", "edit_lines", "search", "think"],
         llm_provider="openai",
         llm_model="gpt-4o-mini",
-        llm_config={
-            "temperature": 1.0,
-            "max_tokens": 16384
-        },
-        system_instructions=_CORE_IDENTITY + _SECURITY_BOUNDARIES + _TONE_AND_STYLE + _TASK_EXECUTION_STRATEGY + _FILE_EDITING_CRITICAL + _VISUALIZATION_DISPLAY + _EXECUTION_RESULT_INTERPRETATION + _DEBUGGING_STRATEGY + _VERIFICATION_BEFORE_COMPLETION + """
+        llm_config={"temperature": 1.0, "max_tokens": 16384},
+        system_instructions=_CORE_IDENTITY
+        + _SECURITY_BOUNDARIES
+        + _TONE_AND_STYLE
+        + _TASK_EXECUTION_STRATEGY
+        + _FILE_EDITING_CRITICAL
+        + _VISUALIZATION_DISPLAY
+        + _EXECUTION_RESULT_INTERPRETATION
+        + _DEBUGGING_STRATEGY
+        + _VERIFICATION_BEFORE_COMPLETION
+        + """
 
 ## Language-Specific Guidance
 
@@ -482,7 +499,7 @@ AGENT_TEMPLATES = {
 - Keep functions focused (single responsibility)
 - Handle errors explicitly - never fail silently
 - Add comments only for complex logic, not obvious code
-- Remove dead code and unused imports"""
+- Remove dead code and unused imports""",
     ),
 }
 
@@ -519,5 +536,5 @@ def get_template_config(template_id: str) -> Dict[str, Any] | None:
     """
     template = get_template(template_id)
     if template:
-        return template.model_dump(exclude={'id', 'name', 'description'})
+        return template.model_dump(exclude={"id", "name", "description"})
     return None

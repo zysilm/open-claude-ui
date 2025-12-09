@@ -11,6 +11,7 @@ from app.core.storage.database import Base
 
 class ContentBlockType(str, enum.Enum):
     """Type of content block."""
+
     USER_TEXT = "user_text"
     ASSISTANT_TEXT = "assistant_text"
     TOOL_CALL = "tool_call"
@@ -20,6 +21,7 @@ class ContentBlockType(str, enum.Enum):
 
 class ContentBlockAuthor(str, enum.Enum):
     """Author of the content block."""
+
     USER = "user"
     ASSISTANT = "assistant"
     SYSTEM = "system"
@@ -46,10 +48,7 @@ class ContentBlock(Base):
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     chat_session_id = Column(
-        String(36),
-        ForeignKey("chat_sessions.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True
+        String(36), ForeignKey("chat_sessions.id", ondelete="CASCADE"), nullable=False, index=True
     )
 
     # Ordering - guarantees consistent display order
@@ -57,12 +56,10 @@ class ContentBlock(Base):
 
     # Block type and author (use values_callable to store lowercase values)
     block_type = Column(
-        Enum(ContentBlockType, values_callable=lambda x: [e.value for e in x]),
-        nullable=False
+        Enum(ContentBlockType, values_callable=lambda x: [e.value for e in x]), nullable=False
     )
     author = Column(
-        Enum(ContentBlockAuthor, values_callable=lambda x: [e.value for e in x]),
-        nullable=False
+        Enum(ContentBlockAuthor, values_callable=lambda x: [e.value for e in x]), nullable=False
     )
 
     # Content payload - structure depends on block_type
@@ -70,9 +67,7 @@ class ContentBlock(Base):
 
     # Parent reference for threading (e.g., tool_result -> tool_call)
     parent_block_id = Column(
-        String(36),
-        ForeignKey("content_blocks.id", ondelete="SET NULL"),
-        nullable=True
+        String(36), ForeignKey("content_blocks.id", ondelete="SET NULL"), nullable=True
     )
 
     # Additional metadata (streaming state, etc.)
@@ -85,10 +80,7 @@ class ContentBlock(Base):
     # Relationships
     chat_session = relationship("ChatSession", back_populates="content_blocks")
     children = relationship(
-        "ContentBlock",
-        backref="parent",
-        remote_side=[id],
-        foreign_keys=[parent_block_id]
+        "ContentBlock", backref="parent", remote_side=[id], foreign_keys=[parent_block_id]
     )
 
     def __repr__(self):

@@ -13,24 +13,18 @@ def get_security_config() -> Dict[str, Any]:
     return {
         # Disable privileged mode
         "privileged": False,
-
         # Read-only root filesystem (except mounted volumes)
         # "read_only": True,  # Commented out for now as it may cause issues
-
         # Drop all capabilities
         "cap_drop": ["ALL"],
-
         # Add only necessary capabilities
         "cap_add": [],
-
         # No new privileges
         "security_opt": ["no-new-privileges"],
-
         # Resource limits
         "mem_limit": "1g",
         "memswap_limit": "1g",
         "cpu_quota": 50000,  # 50% of one CPU
-
         # Disable network (can be enabled per container)
         # "network_disabled": True,
     }
@@ -78,6 +72,7 @@ def validate_file_path(path: str, allowed_base: str = "/workspace") -> bool:
     """
     # Normalize path
     import os
+
     normalized = os.path.normpath(path)
 
     # Check if path starts with allowed base

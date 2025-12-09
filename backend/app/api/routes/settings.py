@@ -142,7 +142,7 @@ async def test_api_key(
         )
 
         # Try a simple completion to test the key
-        response = await provider.generate(
+        await provider.generate(
             messages=[{"role": "user", "content": "Hi"}],
             stream=False,
         )

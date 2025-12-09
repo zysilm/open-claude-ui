@@ -1,8 +1,6 @@
 """Search tool for finding files and content in the sandbox environment."""
 
 from typing import List
-import os
-import fnmatch
 from pathlib import Path
 from app.core.agent.tools.base import Tool, ToolParameter, ToolResult
 from app.core.sandbox.container import SandboxContainer
@@ -91,7 +89,7 @@ class SearchTool(Tool):
         path: str = "/workspace/out",
         max_results: int = 50,
         file_pattern: str = "*",
-        **kwargs
+        **kwargs,
     ) -> ToolResult:
         """Search for files or content in the sandbox.
 
@@ -115,9 +113,7 @@ class SearchTool(Tool):
             try:
                 # Try to list the directory to validate it exists
                 await self._container.execute(
-                    f"test -d {search_path} && echo 'exists'",
-                    workdir="/workspace",
-                    timeout=5
+                    f"test -d {search_path} && echo 'exists'", workdir="/workspace", timeout=5
                 )
             except Exception:
                 return ToolResult(
@@ -284,21 +280,25 @@ class SearchTool(Tool):
                 )
 
                 context_lines = context_stdout.strip().split("\n")[:3]
-                detailed_results.append({
-                    "file": file_path,
-                    "matches": context_lines,
-                })
+                detailed_results.append(
+                    {
+                        "file": file_path,
+                        "matches": context_lines,
+                    }
+                )
 
             # Format output
             output = f"Found '{pattern}' in {len(results)} file(s):\n\n"
             for result in detailed_results:
                 output += f"📄 {result['file']}\n"
-                for match_line in result['matches']:
+                for match_line in result["matches"]:
                     output += f"   {match_line}\n"
                 output += "\n"
 
             if len(results) > max_results:
-                output += f"... and {len(results) - max_results} more files (use max_results to see more)"
+                output += (
+                    f"... and {len(results) - max_results} more files (use max_results to see more)"
+                )
 
             return ToolResult(
                 success=True,

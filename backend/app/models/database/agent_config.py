@@ -1,7 +1,6 @@
 """Agent configuration database model."""
 
 import uuid
-import json
 from sqlalchemy import Column, String, Text, ForeignKey, JSON
 from sqlalchemy.orm import relationship
 
@@ -14,7 +13,9 @@ class AgentConfiguration(Base):
     __tablename__ = "agent_configurations"
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    project_id = Column(String(36), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, unique=True)
+    project_id = Column(
+        String(36), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, unique=True
+    )
 
     # Agent settings
     agent_type = Column(String(50), default="code_agent", nullable=False)

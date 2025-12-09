@@ -1,7 +1,7 @@
 """Workspace storage abstraction for different storage backends."""
 
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from typing import List
 from pathlib import Path
 
 
@@ -50,7 +50,9 @@ class WorkspaceStorage(ABC):
         pass
 
     @abstractmethod
-    async def list_files(self, session_id: str, container_path: str = "/workspace") -> List[FileInfo]:
+    async def list_files(
+        self, session_id: str, container_path: str = "/workspace"
+    ) -> List[FileInfo]:
         """
         List files in a directory.
 
@@ -113,10 +115,7 @@ class WorkspaceStorage(ABC):
 
     @abstractmethod
     async def copy_to_workspace(
-        self,
-        session_id: str,
-        source_path: Path,
-        dest_container_path: str
+        self, session_id: str, source_path: Path, dest_container_path: str
     ) -> None:
         """
         Copy files from host to workspace (e.g., user-uploaded files).
