@@ -139,20 +139,49 @@ class TestChatSessionAPI:
 
     @pytest.mark.asyncio
     async def test_delete_chat_session(self, app, db_session, sample_chat_session):
-        """Test deleting a chat session."""
+        """Test deleting a chat session also destroys container and cleans up workspace."""
         session_id = sample_chat_session.id
 
-        transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
-            response = await client.delete(f"/api/v1/chats/{session_id}")
+        with patch("app.api.routes.chat.get_container_manager") as mock_manager:
+            mock_destroy = AsyncMock(return_value=True)
+            mock_manager.return_value.destroy_container = mock_destroy
 
-        assert response.status_code == 204
+            transport = ASGITransport(app=app)
+            async with AsyncClient(transport=transport, base_url="http://test") as client:
+                response = await client.delete(f"/api/v1/chats/{session_id}")
 
-        # Verify deletion
+            assert response.status_code == 204
+
+            # Verify container cleanup was called
+            mock_destroy.assert_called_once_with(session_id)
+
+        # Verify database deletion
         query = select(ChatSession).where(ChatSession.id == session_id)
         result = await db_session.execute(query)
         deleted = result.scalar_one_or_none()
         assert deleted is None
+
+    @pytest.mark.asyncio
+    async def test_delete_chat_session_cleans_up_even_if_no_container(
+        self, app, db_session, sample_chat_session
+    ):
+        """Test deleting a chat session succeeds even when no container exists."""
+        session_id = sample_chat_session.id
+
+        with patch("app.api.routes.chat.get_container_manager") as mock_manager:
+            # Container doesn't exist (returns False)
+            mock_destroy = AsyncMock(return_value=False)
+            mock_manager.return_value.destroy_container = mock_destroy
+
+            transport = ASGITransport(app=app)
+            async with AsyncClient(transport=transport, base_url="http://test") as client:
+                response = await client.delete(f"/api/v1/chats/{session_id}")
+
+            # Should still succeed
+            assert response.status_code == 204
+
+            # Should still attempt cleanup
+            mock_destroy.assert_called_once_with(session_id)
 
     @pytest.mark.asyncio
     async def test_delete_chat_session_not_found(self, app, db_session):

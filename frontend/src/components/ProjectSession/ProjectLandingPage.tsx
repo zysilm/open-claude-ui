@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { projectsAPI, chatSessionsAPI } from '@/services/api';
 import { useChatStore } from '@/stores/chatStore';
+import { Trash2 } from 'lucide-react';
 import AgentConfigPanel from './AgentConfigPanel';
 import FilePanel from './FilePanel';
 import './ProjectLandingPage.css';
@@ -41,6 +42,21 @@ export default function ProjectLandingPage() {
             navigate(`/projects/${projectId}/chat/${newSession.id}`);
         },
     });
+
+  // Delete session mutation
+  const deleteSessionMutation = useMutation({
+    mutationFn: chatSessionsAPI.delete,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['chatSessions', projectId] });
+    },
+  });
+
+  const handleDeleteSession = (e: React.MouseEvent, sessionId: string) => {
+    e.stopPropagation(); // Prevent navigating to the session
+    if (confirm('Delete this chat session? This will also remove its container and workspace files.')) {
+      deleteSessionMutation.mutate(sessionId);
+    }
+  };
 
     const handleQuickStart = async () => {
         if (!message.trim() || isSending) return;
@@ -148,14 +164,24 @@ export default function ProjectLandingPage() {
                 >
                   <div className="session-header">
                     <h3>{session.name}</h3>
-                    <span className="session-date">
-                      {new Date(session.created_at).toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </span>
+                    <div className="session-actions">
+                      <span className="session-date">
+                        {new Date(session.created_at).toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </span>
+                      <button
+                        className="delete-session-btn"
+                        onClick={(e) => handleDeleteSession(e, session.id)}
+                        title="Delete session"
+                        disabled={deleteSessionMutation.isPending}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
                   </div>
                   {session.updated_at && session.updated_at !== session.created_at && (
                     <p className="session-updated">

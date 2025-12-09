@@ -1,12 +1,13 @@
 """Tests for Projects API routes."""
 
 import pytest
+from unittest.mock import AsyncMock, patch, MagicMock
 from fastapi import FastAPI
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy import select
 
 from app.api.routes.projects import router
-from app.models.database import Project, AgentConfiguration
+from app.models.database import Project, AgentConfiguration, ChatSession
 
 
 @pytest.fixture
@@ -171,16 +172,124 @@ class TestProjectsAPI:
 
     @pytest.mark.asyncio
     async def test_delete_project(self, app, db_session, sample_project):
-        """Test deleting a project."""
+        """Test deleting a project cleans up containers, volumes, and local files."""
         project_id = sample_project.id
 
-        transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
-            response = await client.delete(f"/api/v1/projects/{project_id}")
+        # Create a chat session for this project to verify cascade cleanup
+        session = ChatSession(project_id=project_id, name="Test Session")
+        db_session.add(session)
+        await db_session.commit()
+        await db_session.refresh(session)
+        session_id = session.id
 
-        assert response.status_code == 204
+        with (
+            patch("app.api.routes.projects.get_container_manager") as mock_container_mgr,
+            patch("app.api.routes.projects.get_project_volume_storage") as mock_vol_storage,
+            patch("app.api.routes.projects.get_file_manager") as mock_file_mgr,
+        ):
 
-        # Verify deletion
+            # Mock container manager - should destroy containers for all sessions
+            mock_destroy = AsyncMock(return_value=True)
+            mock_container_mgr.return_value.destroy_container = mock_destroy
+
+            # Mock volume storage - should delete project volume
+            mock_delete_vol = AsyncMock(return_value=True)
+            mock_vol_storage.return_value.delete_volume = mock_delete_vol
+
+            # Mock file manager - should delete project files directory
+            mock_delete_dir = MagicMock(return_value=True)
+            mock_file_mgr.return_value.delete_project_directory = mock_delete_dir
+
+            transport = ASGITransport(app=app)
+            async with AsyncClient(transport=transport, base_url="http://test") as client:
+                response = await client.delete(f"/api/v1/projects/{project_id}")
+
+            assert response.status_code == 204
+
+            # Verify container cleanup was called for each session
+            mock_destroy.assert_called_with(session_id)
+
+            # Verify volume cleanup was called
+            mock_delete_vol.assert_called_once_with(project_id)
+
+            # Verify local files cleanup was called
+            mock_delete_dir.assert_called_once_with(project_id)
+
+        # Verify database deletion
+        query = select(Project).where(Project.id == project_id)
+        result = await db_session.execute(query)
+        deleted = result.scalar_one_or_none()
+        assert deleted is None
+
+    @pytest.mark.asyncio
+    async def test_delete_project_with_multiple_sessions(self, app, db_session, sample_project):
+        """Test deleting a project destroys all associated session containers."""
+        project_id = sample_project.id
+
+        # Create multiple chat sessions
+        session_ids = []
+        for i in range(3):
+            session = ChatSession(project_id=project_id, name=f"Session {i}")
+            db_session.add(session)
+            await db_session.commit()
+            await db_session.refresh(session)
+            session_ids.append(session.id)
+
+        with (
+            patch("app.api.routes.projects.get_container_manager") as mock_container_mgr,
+            patch("app.api.routes.projects.get_project_volume_storage") as mock_vol_storage,
+            patch("app.api.routes.projects.get_file_manager") as mock_file_mgr,
+        ):
+
+            mock_destroy = AsyncMock(return_value=True)
+            mock_container_mgr.return_value.destroy_container = mock_destroy
+            mock_vol_storage.return_value.delete_volume = AsyncMock(return_value=True)
+            mock_file_mgr.return_value.delete_project_directory = MagicMock(return_value=True)
+
+            transport = ASGITransport(app=app)
+            async with AsyncClient(transport=transport, base_url="http://test") as client:
+                response = await client.delete(f"/api/v1/projects/{project_id}")
+
+            assert response.status_code == 204
+
+            # Verify container cleanup was called for all sessions
+            assert mock_destroy.call_count == 3
+            called_session_ids = [call[0][0] for call in mock_destroy.call_args_list]
+            for sid in session_ids:
+                assert sid in called_session_ids
+
+    @pytest.mark.asyncio
+    async def test_delete_project_cleanup_failures_dont_block_deletion(
+        self, app, db_session, sample_project
+    ):
+        """Test that cleanup failures don't prevent project deletion."""
+        project_id = sample_project.id
+
+        with (
+            patch("app.api.routes.projects.get_container_manager") as mock_container_mgr,
+            patch("app.api.routes.projects.get_project_volume_storage") as mock_vol_storage,
+            patch("app.api.routes.projects.get_file_manager") as mock_file_mgr,
+        ):
+
+            # Simulate cleanup failures
+            mock_container_mgr.return_value.destroy_container = AsyncMock(
+                side_effect=Exception("Container error")
+            )
+            mock_vol_storage.return_value.delete_volume = AsyncMock(
+                side_effect=Exception("Volume error")
+            )
+            mock_file_mgr.return_value.delete_project_directory = MagicMock(
+                side_effect=Exception("File error")
+            )
+
+            transport = ASGITransport(app=app)
+            async with AsyncClient(transport=transport, base_url="http://test") as client:
+                response = await client.delete(f"/api/v1/projects/{project_id}")
+
+            # Should still succeed - cleanup failures should be logged but not block deletion
+            assert response.status_code == 204
+
+        # Verify database deletion still happened
         query = select(Project).where(Project.id == project_id)
         result = await db_session.execute(query)
         deleted = result.scalar_one_or_none()

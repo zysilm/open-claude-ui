@@ -4,6 +4,7 @@ Tests the complete flow of project creation, configuration, and management.
 """
 
 import pytest
+from unittest.mock import AsyncMock, patch, MagicMock
 from httpx import AsyncClient
 
 
@@ -112,18 +113,49 @@ class TestProjectLifecycle:
 
     @pytest.mark.asyncio
     async def test_delete_project(self, client: AsyncClient):
-        """Test deleting a project."""
+        """Test deleting a project cleans up containers, volumes, and local files."""
         # Create project
         create_response = await client.post(
             "/api/v1/projects", json={"name": "Delete Test Project", "description": "To be deleted"}
         )
         project_id = create_response.json()["id"]
 
-        # Delete project
-        response = await client.delete(f"/api/v1/projects/{project_id}")
-        assert response.status_code == 204
+        # Create a chat session to verify cascade cleanup
+        session_response = await client.post(
+            f"/api/v1/projects/{project_id}/chat-sessions",
+            json={"name": "Session to cleanup"},
+        )
+        session_id = session_response.json()["id"]
 
-        # Verify deletion
+        with (
+            patch("app.api.routes.projects.get_container_manager") as mock_container_mgr,
+            patch("app.api.routes.projects.get_project_volume_storage") as mock_vol_storage,
+            patch("app.api.routes.projects.get_file_manager") as mock_file_mgr,
+        ):
+
+            mock_destroy = AsyncMock(return_value=True)
+            mock_container_mgr.return_value.destroy_container = mock_destroy
+
+            mock_delete_vol = AsyncMock(return_value=True)
+            mock_vol_storage.return_value.delete_volume = mock_delete_vol
+
+            mock_delete_dir = MagicMock(return_value=True)
+            mock_file_mgr.return_value.delete_project_directory = mock_delete_dir
+
+            # Delete project
+            response = await client.delete(f"/api/v1/projects/{project_id}")
+            assert response.status_code == 204
+
+            # Verify container cleanup was called for the session
+            mock_destroy.assert_called_with(session_id)
+
+            # Verify volume cleanup was called
+            mock_delete_vol.assert_called_once_with(project_id)
+
+            # Verify local files cleanup was called
+            mock_delete_dir.assert_called_once_with(project_id)
+
+        # Verify deletion from database
         get_response = await client.get(f"/api/v1/projects/{project_id}")
         assert get_response.status_code == 404
 
@@ -301,7 +333,7 @@ class TestChatSessionManagement:
 
     @pytest.mark.asyncio
     async def test_delete_chat_session(self, client: AsyncClient):
-        """Test deleting a chat session."""
+        """Test deleting a chat session also cleans up its container."""
         # Create project and session
         project_response = await client.post(
             "/api/v1/projects", json={"name": "Delete Session Project"}
@@ -313,11 +345,18 @@ class TestChatSessionManagement:
         )
         session_id = session_response.json()["id"]
 
-        # Delete session
-        response = await client.delete(f"/api/v1/chats/{session_id}")
-        assert response.status_code == 204
+        with patch("app.api.routes.chat.get_container_manager") as mock_manager:
+            mock_destroy = AsyncMock(return_value=True)
+            mock_manager.return_value.destroy_container = mock_destroy
 
-        # Verify deletion
+            # Delete session
+            response = await client.delete(f"/api/v1/chats/{session_id}")
+            assert response.status_code == 204
+
+            # Verify container cleanup was attempted
+            mock_destroy.assert_called_once_with(session_id)
+
+        # Verify deletion from database
         get_response = await client.get(f"/api/v1/chats/{session_id}")
         assert get_response.status_code == 404
 
