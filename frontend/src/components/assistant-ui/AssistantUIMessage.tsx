@@ -354,10 +354,11 @@ const AssistantUIMessageInner: React.FC<AssistantUIMessageProps> = ({
       }
     }
 
-    // Step 3: Create a unified list of all parts with sequence numbers
+    // Step 3: Create a unified list of all parts with sequence numbers and timestamps
     interface SequencedPart {
       type: 'text' | 'tool-call';
       sequenceNumber: number;
+      updatedAt: string;  // ISO timestamp for sorting by finalization time
       data: any;
     }
     const sequencedParts: SequencedPart[] = [];
@@ -373,6 +374,7 @@ const AssistantUIMessageInner: React.FC<AssistantUIMessageProps> = ({
       sequencedParts.push({
         type: 'text',
         sequenceNumber: textBlock.sequence_number,
+        updatedAt: textBlock.updated_at,  // Capture timestamp for sorting
         data: {
           blockId: textBlock.id,
           content: text,
@@ -420,6 +422,7 @@ const AssistantUIMessageInner: React.FC<AssistantUIMessageProps> = ({
           sequencedParts.push({
             type: 'tool-call',
             sequenceNumber: b.sequence_number,
+            updatedAt: b.updated_at,  // Capture timestamp for sorting
             data: {
               toolCallId: b.id,
               toolName: callContent.tool_name || 'unknown',
@@ -435,6 +438,7 @@ const AssistantUIMessageInner: React.FC<AssistantUIMessageProps> = ({
           sequencedParts.push({
             type: 'tool-call',
             sequenceNumber: b.sequence_number,
+            updatedAt: b.updated_at,  // Capture timestamp for sorting
             data: {
               toolCallId: b.id,
               toolName: callContent.tool_name || 'unknown',
@@ -451,8 +455,14 @@ const AssistantUIMessageInner: React.FC<AssistantUIMessageProps> = ({
       }
     }
 
-    // Step 4: Sort all parts by sequence_number
-    sequencedParts.sort((a, b) => a.sequenceNumber - b.sequenceNumber);
+    // Step 4: Sort all parts by updated_at timestamp (reflects finalization order)
+    // Falls back to sequence_number if timestamps are the same
+    sequencedParts.sort((a, b) => {
+      const timeA = new Date(a.updatedAt).getTime();
+      const timeB = new Date(b.updatedAt).getTime();
+      if (timeA !== timeB) return timeA - timeB;
+      return a.sequenceNumber - b.sequenceNumber;
+    });
 
     // Step 5: Handle streaming text - append to the last text block or create new
     if (isStreaming && streamingText) {
@@ -466,6 +476,7 @@ const AssistantUIMessageInner: React.FC<AssistantUIMessageProps> = ({
         sequencedParts.push({
           type: 'text',
           sequenceNumber: 0,
+          updatedAt: new Date().toISOString(),  // Use current time for streaming
           data: {
             blockId: 'streaming',
             content: streamingText,
@@ -478,6 +489,7 @@ const AssistantUIMessageInner: React.FC<AssistantUIMessageProps> = ({
       sequencedParts.push({
         type: 'text',
         sequenceNumber: 0,
+        updatedAt: new Date().toISOString(),  // Use current time for streaming
         data: {
           blockId: 'streaming',
           content: '',
@@ -500,10 +512,12 @@ const AssistantUIMessageInner: React.FC<AssistantUIMessageProps> = ({
       : 0;
 
     let streamingSeq = maxSeq + 1;
+    const nowIso = new Date().toISOString();  // Use current time for all streaming tools
     for (const [key, state] of streamingToolState) {
       sequencedParts.push({
         type: 'tool-call',
         sequenceNumber: streamingSeq++,
+        updatedAt: nowIso,  // Use current time for streaming (appears at end)
         data: {
           toolCallId: `streaming-${key}`,
           toolName: state.toolName,

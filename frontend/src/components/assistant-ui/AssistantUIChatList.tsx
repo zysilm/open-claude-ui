@@ -59,8 +59,14 @@ function groupBlocks(blocks: ContentBlock[]): DisplayGroup[] {
   const groups: DisplayGroup[] = [];
   let currentAssistantGroup: DisplayGroup | null = null;
 
-  // Sort by sequence_number to ensure correct order
-  const sortedBlocks = [...blocks].sort((a, b) => a.sequence_number - b.sequence_number);
+  // Sort by updated_at to ensure correct order (reflects when content was finalized)
+  // Falls back to sequence_number if updated_at is the same
+  const sortedBlocks = [...blocks].sort((a, b) => {
+    const timeA = new Date(a.updated_at).getTime();
+    const timeB = new Date(b.updated_at).getTime();
+    if (timeA !== timeB) return timeA - timeB;
+    return a.sequence_number - b.sequence_number;
+  });
 
   for (const block of sortedBlocks) {
     if (block.block_type === 'user_text') {
