@@ -265,13 +265,8 @@ jobs:
       - name: Test backend endpoint
         shell: pwsh
         run: |
-          $response = Invoke-WebRequest -Uri http://localhost:8000/ -UseBasicParsing
-          if ($response.StatusCode -ne 200) { exit 1 }
-          Write-Host "Backend is accessible!"
-
-          $response = Invoke-WebRequest -Uri http://localhost:8000/docs -UseBasicParsing
-          if ($response.StatusCode -ne 200) { exit 1 }
-          Write-Host "Backend docs are accessible!"
+          python -c "import urllib.request; r = urllib.request.urlopen('http://localhost:8000/'); assert r.status == 200; print('Backend is accessible!')"
+          python -c "import urllib.request; r = urllib.request.urlopen('http://localhost:8000/docs'); assert r.status == 200; print('Backend docs are accessible!')"
 
       - name: Start frontend server
         shell: pwsh
