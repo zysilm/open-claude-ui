@@ -197,7 +197,7 @@ jobs:
           poetry install --with dev
 
           # Create .env file
-          $encryptionKey = python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+          $encryptionKey = poetry run python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
           @"
           DATABASE_URL=sqlite+aiosqlite:///./data/breezerun.db
           HOST=127.0.0.1
