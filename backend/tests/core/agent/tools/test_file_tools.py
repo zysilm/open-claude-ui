@@ -71,6 +71,87 @@ class TestFileReadTool:
         assert "image_data" in result.metadata
 
     @pytest.mark.asyncio
+    async def test_read_video_file(self, mock_container):
+        """Test reading a video file - should not store binary data in metadata."""
+        mock_container.read_file.return_value = "data:video/mp4;base64,AAAAIGZ0eXBpc29t..."
+        tool = FileReadTool(mock_container)
+
+        result = await tool.execute(path="/workspace/out/video.mp4")
+
+        assert result.success is True
+        assert result.metadata["is_binary"] is True
+        assert result.metadata["type"] == "binary"
+        assert result.metadata["mime_type"] == "video/mp4"
+        assert result.metadata["filename"] == "video.mp4"
+        # Should NOT store binary data in metadata to avoid bloating DB
+        assert "data" not in result.metadata
+        # LLM should get a short descriptive message, not the binary content
+        assert "data:video/mp4;base64" not in result.output
+        assert "binary file" in result.output.lower() or "video/mp4" in result.output
+
+    @pytest.mark.asyncio
+    async def test_read_audio_file(self, mock_container):
+        """Test reading an audio file - should not store binary data in metadata."""
+        mock_container.read_file.return_value = "data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0..."
+        tool = FileReadTool(mock_container)
+
+        result = await tool.execute(path="/workspace/out/audio.mp3")
+
+        assert result.success is True
+        assert result.metadata["is_binary"] is True
+        assert result.metadata["type"] == "binary"
+        assert result.metadata["mime_type"] == "audio/mpeg"
+        # Should NOT store binary data
+        assert "data" not in result.metadata
+
+    @pytest.mark.asyncio
+    async def test_read_pdf_file(self, mock_container):
+        """Test reading a PDF file - should not store binary data in metadata."""
+        mock_container.read_file.return_value = "data:application/pdf;base64,JVBERi0xLjQK..."
+        tool = FileReadTool(mock_container)
+
+        result = await tool.execute(path="/workspace/out/document.pdf")
+
+        assert result.success is True
+        assert result.metadata["is_binary"] is True
+        assert result.metadata["type"] == "binary"
+        assert result.metadata["mime_type"] == "application/pdf"
+        # Should NOT store binary data
+        assert "data" not in result.metadata
+
+    @pytest.mark.asyncio
+    async def test_read_generic_binary_file(self, mock_container):
+        """Test reading a generic binary file - should not store binary data."""
+        mock_container.read_file.return_value = "data:application/octet-stream;base64,f0VMRgI..."
+        tool = FileReadTool(mock_container)
+
+        result = await tool.execute(path="/workspace/out/binary.bin")
+
+        assert result.success is True
+        assert result.metadata["is_binary"] is True
+        assert result.metadata["type"] == "binary"
+        # Should NOT store binary data
+        assert "data" not in result.metadata
+
+    @pytest.mark.asyncio
+    async def test_image_vs_other_binary_handling(self, mock_container):
+        """Test that images store data but other binaries don't."""
+        tool = FileReadTool(mock_container)
+
+        # Image should store data in metadata
+        mock_container.read_file.return_value = "data:image/png;base64,iVBORw0KGgo..."
+        image_result = await tool.execute(path="/workspace/out/image.png")
+        assert image_result.metadata["type"] == "image"
+        assert "image_data" in image_result.metadata
+
+        # Video should NOT store data in metadata
+        mock_container.read_file.return_value = "data:video/mp4;base64,AAAAIGZ0eXBpc29t..."
+        video_result = await tool.execute(path="/workspace/out/video.mp4")
+        assert video_result.metadata["type"] == "binary"
+        assert "data" not in video_result.metadata
+        assert "image_data" not in video_result.metadata
+
+    @pytest.mark.asyncio
     async def test_read_file_not_found(self, mock_container):
         """Test reading a non-existent file."""
         mock_container.read_file.return_value = None
