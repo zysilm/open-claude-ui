@@ -108,10 +108,37 @@ Use any LLM via LiteLLM:
 
 - Python 3.11+
 - Node.js 18+
-- Docker 20.10+
+- Docker 20.10+ (optional, for sandboxed execution)
 - An LLM API key (OpenAI, Anthropic, etc.)
 
-### Installation
+### Automated Setup (Recommended)
+
+The easiest way to get started is using our setup scripts that automatically install all dependencies:
+
+**macOS / Linux:**
+```bash
+git clone https://github.com/zysoong/breezerun.git
+cd breezerun
+chmod +x setup.sh
+./setup.sh
+```
+
+**Windows (PowerShell as Administrator):**
+```powershell
+git clone https://github.com/zysoong/breezerun.git
+cd breezerun
+powershell -ExecutionPolicy Bypass -File setup.ps1
+```
+
+The setup script will:
+- Install Python, Node.js, and Poetry (if not present)
+- Install all backend and frontend dependencies
+- Create `.env` file with auto-generated encryption key
+- Optionally build Docker sandbox images
+
+### Manual Installation
+
+If you prefer manual setup:
 
 ```bash
 # Clone the repository
@@ -120,16 +147,15 @@ cd breezerun
 
 # Backend setup
 cd backend
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-pip install -r requirements.txt
+pip install poetry
+poetry install
 
-# Configure API keys
+# Create .env file
 cp .env.example .env
-# Edit .env and add your API keys
+# Edit .env and add your MASTER_ENCRYPTION_KEY (or let the app auto-generate one)
 
 # Start backend
-python -m app.main
+poetry run python -m app.main
 
 # Frontend setup (new terminal)
 cd frontend
