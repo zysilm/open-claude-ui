@@ -64,7 +64,7 @@ chmod +x start.sh
 ./start.sh
 ```
 
-**Windows (PowerShell as Administrator):**
+**Windows (PowerShell):**
 ```powershell
 git clone https://github.com/zysoong/breezerun.git
 cd breezerun
@@ -72,11 +72,14 @@ powershell -ExecutionPolicy Bypass -File start.ps1
 ```
 
 The start script will:
-- Install Python, Node.js, Poetry, and Docker (if not present)
+- **macOS/Linux:** Install Python, Node.js, Poetry, and Docker (if not present)
+- **Windows:** Download embedded Python and Node.js to `local_venv/` folder (no system PATH modification, no admin required for Python/Node.js), and install Docker Desktop if not present
 - Install all backend and frontend dependencies
 - Create `.env` file with auto-generated encryption key
-- Build Docker sandbox images (use `--skip-docker` to skip)
+- Build Docker sandbox images (use `-SkipDocker` to skip)
 - Start both backend and frontend servers
+
+> **Note (Windows):** Docker Desktop must be started manually after installation. The script will install it but cannot start it automatically.
 
 Then open http://localhost:5173 in your browser.
 
@@ -91,6 +94,7 @@ powershell -ExecutionPolicy Bypass -File start.ps1 -NoStart
 
 Then start the servers manually:
 ```bash
+# macOS / Linux
 # Terminal 1: Start backend
 cd backend
 poetry run python -m app.main
@@ -98,6 +102,17 @@ poetry run python -m app.main
 # Terminal 2: Start frontend
 cd frontend
 npm run dev
+```
+
+```powershell
+# Windows - use the embedded runtimes
+# Terminal 1: Start backend
+cd backend
+..\local_venv\python\Scripts\poetry.exe run python -m app.main
+
+# Terminal 2: Start frontend
+cd frontend
+..\local_venv\node\npm.cmd run dev
 ```
 
 ## Features
