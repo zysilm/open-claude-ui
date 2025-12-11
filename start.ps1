@@ -293,20 +293,94 @@ function Setup-Backend {
     Push-Location backend
 
     try {
+        # Get the correct Python command
+        $pythonCmd = Get-PythonCommand
+        if (-not $pythonCmd) {
+            Write-Error "Python is required for backend setup"
+            return
+        }
+        $pythonPath = (Get-Command $pythonCmd).Source
+        Write-Step "Using Python: $pythonPath"
+        
+        # Check if Poetry's virtualenv works by testing it directly
+        Write-Step "Checking Poetry virtual environment..."
+        $envWorks = $false
+        
+        # Suppress errors and test if poetry can run python
+        $testOutput = poetry run python --version 2>&1
+        if ($LASTEXITCODE -eq 0 -and $testOutput -match "Python") {
+            Write-Success "Poetry environment is working: $testOutput"
+            $envWorks = $true
+        } else {
+            Write-Warning "Poetry environment is broken or missing"
+            Write-Step "Cleaning up old virtual environments..."
+            
+            # Method 1: Try poetry env remove --all (Poetry 1.2+)
+            $null = poetry env remove --all 2>&1
+            
+            # Method 2: Remove local .venv folder
+            if (Test-Path ".venv") {
+                Write-Step "Removing .venv folder..."
+                Remove-Item -Recurse -Force ".venv" -ErrorAction SilentlyContinue
+            }
+            
+            # Method 3: Find and remove from Poetry's cache directory
+            $poetryCacheDir = "$env:LOCALAPPDATA\pypoetry\virtualenvs"
+            if (Test-Path $poetryCacheDir) {
+                # Find virtualenvs for this project (they start with the project folder name)
+                $projectName = (Get-Item .).Name
+                $oldEnvs = Get-ChildItem -Path $poetryCacheDir -Directory | Where-Object { $_.Name -like "$projectName-*" }
+                foreach ($oldEnv in $oldEnvs) {
+                    Write-Step "Removing cached virtualenv: $($oldEnv.Name)"
+                    Remove-Item -Recurse -Force $oldEnv.FullName -ErrorAction SilentlyContinue
+                }
+            }
+            
+            # Method 4: Also check alternative cache location
+            $poetryCacheDir2 = "$env:APPDATA\pypoetry\virtualenvs"
+            if (Test-Path $poetryCacheDir2) {
+                $projectName = (Get-Item .).Name
+                $oldEnvs = Get-ChildItem -Path $poetryCacheDir2 -Directory | Where-Object { $_.Name -like "$projectName-*" }
+                foreach ($oldEnv in $oldEnvs) {
+                    Write-Step "Removing cached virtualenv: $($oldEnv.Name)"
+                    Remove-Item -Recurse -Force $oldEnv.FullName -ErrorAction SilentlyContinue
+                }
+            }
+            
+            # Now create a new virtualenv with the correct Python
+            Write-Step "Creating new virtual environment with: $pythonPath"
+            poetry env use $pythonPath 2>&1
+            
+            if ($LASTEXITCODE -ne 0) {
+                Write-Error "Failed to create Poetry virtual environment"
+                Write-Warning "Try manually running: poetry env use `"$pythonPath`""
+                return
+            }
+            
+            Write-Success "New virtual environment created"
+        }
+        
         # Install dependencies
+        Write-Step "Installing Python dependencies..."
         poetry install --with dev
+        
+        if ($LASTEXITCODE -ne 0) {
+            Write-Error "Failed to install dependencies"
+            return
+        }
 
         # Create .env if it doesn't exist
         if (-not (Test-Path ".env")) {
             Write-Step "Creating .env file..."
 
-            # Generate encryption key using detected Python
-            $pythonCmd = Get-PythonCommand
-            if (-not $pythonCmd) {
-                Write-Error "Python is required to generate encryption key"
-                return
+            # Generate encryption key using Poetry's Python (now that it works)
+            $encryptionKey = poetry run python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())" 2>&1
+            
+            if ($LASTEXITCODE -ne 0) {
+                # Fallback to system Python
+                Write-Warning "Using system Python for key generation"
+                $encryptionKey = & $pythonCmd -c "import secrets; print(secrets.token_urlsafe(32))"
             }
-            $encryptionKey = & $pythonCmd -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 
             if (Test-Path ".env.example") {
                 Copy-Item ".env.example" ".env"
@@ -335,6 +409,15 @@ MASTER_ENCRYPTION_KEY=$encryptionKey
         # Create data directory
         if (-not (Test-Path "data")) {
             New-Item -ItemType Directory -Path "data" | Out-Null
+        }
+        
+        # Final verification
+        Write-Step "Verifying backend setup..."
+        $finalTest = poetry run python --version 2>&1
+        if ($LASTEXITCODE -eq 0) {
+            Write-Success "Backend setup complete! Python: $finalTest"
+        } else {
+            Write-Error "Backend setup may have issues. Test with: cd backend; poetry run python --version"
         }
     }
     finally {
@@ -510,13 +593,32 @@ function Start-Services {
 
     # Use script directory
     $scriptDir = $script:ScriptDirectory
+    
+    # Verify Poetry can run Python in the backend directory
+    Write-Step "Verifying Poetry environment..."
+    Push-Location "$scriptDir\backend"
+    try {
+        $testResult = poetry run python --version 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            Write-Error "Poetry cannot run Python. Error: $testResult"
+            Write-Warning "Try running: cd backend; poetry env use (Get-Command py).Source"
+            Pop-Location
+            return
+        }
+        Write-Success "Poetry Python is working: $testResult"
+    } catch {
+        Write-Error "Failed to verify Poetry environment: $_"
+        Pop-Location
+        return
+    }
+    Pop-Location
 
     # Start backend in a new window
     Write-Step "Starting backend server..."
     $backendJob = Start-Process -FilePath "powershell" -ArgumentList "-NoExit", "-Command", "cd '$scriptDir\backend'; poetry run python -m app.main" -PassThru
 
     # Wait for backend to be ready
-    Write-Step "Waiting for backend to start..."
+    Write-Step "Waiting for backend to start (max 30 seconds)..."
     $backendReady = $false
     for ($i = 1; $i -le 30; $i++) {
         Start-Sleep -Seconds 1
@@ -529,7 +631,19 @@ function Start-Services {
             }
         } catch {
             # Still waiting...
+            if ($i % 10 -eq 0) {
+                Write-Host "  Still waiting... ($i seconds)"
+            }
         }
+    }
+    
+    if (-not $backendReady) {
+        Write-Warning "Backend did not respond within 30 seconds."
+        Write-Warning "Check the backend terminal window for errors."
+        Write-Warning "Common issues:"
+        Write-Warning "  - Poetry virtual environment has wrong Python path"
+        Write-Warning "  - Missing dependencies (run: cd backend; poetry install)"
+        Write-Warning "  - Port 8000 already in use"
     }
 
     # Start frontend in a new window
@@ -537,7 +651,7 @@ function Start-Services {
     $frontendJob = Start-Process -FilePath "powershell" -ArgumentList "-NoExit", "-Command", "cd '$scriptDir\frontend'; npm run dev" -PassThru
 
     # Wait for frontend to be ready
-    Write-Step "Waiting for frontend to start..."
+    Write-Step "Waiting for frontend to start (max 30 seconds)..."
     $frontendReady = $false
     for ($i = 1; $i -le 30; $i++) {
         Start-Sleep -Seconds 1
@@ -550,13 +664,27 @@ function Start-Services {
             }
         } catch {
             # Still waiting...
+            if ($i % 10 -eq 0) {
+                Write-Host "  Still waiting... ($i seconds)"
+            }
         }
+    }
+    
+    if (-not $frontendReady) {
+        Write-Warning "Frontend did not respond within 30 seconds."
+        Write-Warning "Check the frontend terminal window for errors."
     }
 
     Write-Host ""
-    Write-Host "============================================================" -ForegroundColor Green
-    Write-Host "                BreezeRun is running!                        " -ForegroundColor Green
-    Write-Host "============================================================" -ForegroundColor Green
+    if ($backendReady -and $frontendReady) {
+        Write-Host "============================================================" -ForegroundColor Green
+        Write-Host "                BreezeRun is running!                        " -ForegroundColor Green
+        Write-Host "============================================================" -ForegroundColor Green
+    } else {
+        Write-Host "============================================================" -ForegroundColor Yellow
+        Write-Host "            BreezeRun started with warnings                  " -ForegroundColor Yellow
+        Write-Host "============================================================" -ForegroundColor Yellow
+    }
     Write-Host ""
     Write-Host "  Backend:  http://localhost:8000"
     Write-Host "  Frontend: http://localhost:5173"
@@ -564,8 +692,10 @@ function Start-Services {
     Write-Host "  Close the terminal windows to stop the services"
     Write-Host ""
 
-    # Open browser
-    Start-Process "http://localhost:5173"
+    # Open browser if frontend is ready
+    if ($frontendReady) {
+        Start-Process "http://localhost:5173"
+    }
 }
 
 Main
